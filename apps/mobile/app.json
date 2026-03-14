@@ -36,37 +36,11 @@
       "bundler": "metro"
     },
     "plugins": [
-      "expo-router",
-      [
-        "react-native-nitro-screen-recorder",
-        {
-          "enableCameraPermission": false,
-          "enableMicrophonePermission": false,
-          "iosBroadcastExtensionTargetName": "QuenchrScreenRecorder",
-          "iosAppGroupIdentifier": "group.com.quenchr.app.screenrecording"
-        }
-      ]
+      "expo-router"
     ],
     "extra": {
       "router": {},
       "eas": {
-        "build": {
-          "experimental": {
-            "ios": {
-              "appExtensions": [
-                {
-                  "targetName": "QuenchrScreenRecorder",
-                  "bundleIdentifier": "com.quenchr.app.QuenchrScreenRecorder",
-                  "entitlements": {
-                    "com.apple.security.application-groups": [
-                      "group.com.quenchr.app.screenrecording"
-                    ]
-                  }
-                }
-              ]
-            }
-          }
-        },
         "projectId": "edddd098-860c-4bae-8b59-56363582d446"
       }
     }
