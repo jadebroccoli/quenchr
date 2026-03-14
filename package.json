@@ -1,0 +1,16 @@
+{
+  "name": "quenchr",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev:mobile": "turbo run dev --filter=@quenchr/mobile",
+    "dev:extension": "turbo run dev --filter=@quenchr/extension",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "clean": "turbo run clean"
+  },
+  "devDependencies": {
+    "turbo": "^2.4.0"
+  },
+  "packageManager": "pnpm@9.15.0"
+}

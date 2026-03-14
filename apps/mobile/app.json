@@ -1,0 +1,74 @@
+{
+  "expo": {
+    "name": "Quenchr",
+    "slug": "quenchr",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "scheme": "quenchr",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0F172A"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.quenchr.app",
+      "infoPlist": {}
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0F172A",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "package": "com.quenchr.app",
+      "permissions": [
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION",
+        "android.permission.POST_NOTIFICATIONS"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "react-native-nitro-screen-recorder",
+        {
+          "enableCameraPermission": false,
+          "enableMicrophonePermission": false,
+          "iosBroadcastExtensionTargetName": "QuenchrScreenRecorder",
+          "iosAppGroupIdentifier": "group.com.quenchr.app.screenrecording"
+        }
+      ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "targetName": "QuenchrScreenRecorder",
+                  "bundleIdentifier": "com.quenchr.app.QuenchrScreenRecorder",
+                  "entitlements": {
+                    "com.apple.security.application-groups": [
+                      "group.com.quenchr.app.screenrecording"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "projectId": "edddd098-860c-4bae-8b59-56363582d446"
+      }
+    }
+  }
+}
