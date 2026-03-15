@@ -123,6 +123,9 @@ importers:
       '@quenchr/shared':
         specifier: workspace:*
         version: link:../shared
+      '@react-native-async-storage/async-storage':
+        specifier: 2.2.0
+        version: 2.2.0(react-native@0.83.2(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.0))
       '@supabase/supabase-js':
         specifier: ^2.49.0
         version: 2.99.1
