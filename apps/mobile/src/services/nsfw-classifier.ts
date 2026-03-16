@@ -27,7 +27,10 @@ export interface ScanProgress {
 let model: nsfwjs.NSFWJS | null = null;
 let initPromise: Promise<void> | null = null;
 
-const MODEL_URL = 'https://nsfwjs.com/quant_nsfw_mobilenet/';
+// Use the bundled model name (loads from node_modules via dynamic import).
+// The old URL (https://nsfwjs.com/quant_nsfw_mobilenet/) was taken down.
+// "MobileNetV2" loads the quantized MobileNet v2 model (~6MB) embedded in the nsfwjs package.
+const MODEL_NAME = 'MobileNetV2';
 
 // ── Public API ──
 
@@ -52,7 +55,7 @@ export async function initializeModel(
       console.log('[nsfw-classifier] TF.js ready, backend:', tf.getBackend());
 
       onProgress?.('Loading NSFW model...');
-      model = await nsfwjs.load(MODEL_URL, { size: 224 });
+      model = await nsfwjs.load(MODEL_NAME, { size: 224 });
       console.log('[nsfw-classifier] Model loaded');
 
       onProgress?.('Model ready');
