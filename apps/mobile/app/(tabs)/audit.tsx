@@ -13,8 +13,7 @@ import { initializeModel, isModelLoaded, scanImages } from '../../src/services/n
 import { selectFlaggedFrames, analyzeWithAI } from '../../src/services/ai-insights';
 import { ScanningProgressView } from '../../src/components/ScanningProgressView';
 import { AuditResultsView } from '../../src/components/AuditResultsView';
-// LiveScanView import removed — Live Scan is disabled until native screen recording module is restored
-// import { LiveScanView } from '../../src/components/LiveScanView';
+import { LiveScanView } from '../../src/components/LiveScanView';
 
 const PLATFORM_OPTIONS: { key: Platform; emoji: string }[] = [
   { key: 'instagram', emoji: '📸' },
@@ -335,64 +334,69 @@ export default function AuditScreen() {
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.modeChip, styles.modeChipDisabled]}
-            onPress={() => Alert.alert('Coming Soon', 'Live Scan will be available in a future update. Use Screenshots mode for now!')}
+            style={[styles.modeChip, auditMode === 'livescan' && styles.modeChipActive]}
+            onPress={() => setAuditMode('livescan')}
           >
-            <Text style={[styles.modeEmoji, { opacity: 0.5 }]}>🔴</Text>
-            <Text style={[styles.modeLabel, { opacity: 0.5 }]}>
+            <Text style={styles.modeEmoji}>🔴</Text>
+            <Text style={[styles.modeLabel, auditMode === 'livescan' && styles.modeLabelActive]}>
               Live Scan
             </Text>
-            <View style={styles.comingSoonBadge}>
-              <Text style={styles.comingSoonText}>SOON</Text>
-            </View>
           </TouchableOpacity>
         </View>
 
-        {/* Screenshot Mode Content */}
-        <>
-          {/* Instructions */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>How it works</Text>
-            <View style={styles.stepList}>
-              <Text style={styles.step}>1. Open {PLATFORMS[selectedPlatform].label}</Text>
-              <Text style={styles.step}>
-                2. Go to your {selectedPlatform === 'instagram' ? 'Explore page' : 'For You Page'}
-              </Text>
-              <Text style={styles.step}>3. Take 3-5 screenshots as you scroll</Text>
-              <Text style={styles.step}>4. Come back here and select them</Text>
+        {/* Mode Content */}
+        {auditMode === 'livescan' ? (
+          <LiveScanView
+            platform={selectedPlatform}
+            onFramesExtracted={handleFramesExtracted}
+            onCancel={() => setAuditMode('screenshots')}
+          />
+        ) : (
+          <>
+            {/* Instructions */}
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>How it works</Text>
+              <View style={styles.stepList}>
+                <Text style={styles.step}>1. Open {PLATFORMS[selectedPlatform].label}</Text>
+                <Text style={styles.step}>
+                  2. Go to your {selectedPlatform === 'instagram' ? 'Explore page' : 'For You Page'}
+                </Text>
+                <Text style={styles.step}>3. Take 3-5 screenshots as you scroll</Text>
+                <Text style={styles.step}>4. Come back here and select them</Text>
+              </View>
             </View>
-          </View>
 
-          {/* Screenshot Picker */}
-          <TouchableOpacity style={styles.pickerButton} onPress={pickImages}>
-            <Text style={styles.pickerEmoji}>📱</Text>
-            <Text style={styles.pickerText}>
-              {screenshots.length > 0
-                ? `${screenshots.length} screenshot${screenshots.length > 1 ? 's' : ''} selected`
-                : 'Select Screenshots'}
-            </Text>
-          </TouchableOpacity>
+            {/* Screenshot Picker */}
+            <TouchableOpacity style={styles.pickerButton} onPress={pickImages}>
+              <Text style={styles.pickerEmoji}>📱</Text>
+              <Text style={styles.pickerText}>
+                {screenshots.length > 0
+                  ? `${screenshots.length} screenshot${screenshots.length > 1 ? 's' : ''} selected`
+                  : 'Select Screenshots'}
+              </Text>
+            </TouchableOpacity>
 
-          {/* Preview */}
-          {screenshots.length > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.previewRow}>
-              {screenshots.map((uri, i) => (
-                <Image key={i} source={{ uri }} style={styles.previewImage} />
-              ))}
-            </ScrollView>
-          )}
+            {/* Preview */}
+            {screenshots.length > 0 && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.previewRow}>
+                {screenshots.map((uri, i) => (
+                  <Image key={i} source={{ uri }} style={styles.previewImage} />
+                ))}
+              </ScrollView>
+            )}
 
-          {/* Scan Button */}
-          <TouchableOpacity
-            style={[styles.scanButton, (scanning || screenshots.length === 0) && styles.scanButtonDisabled]}
-            onPress={runAudit}
-            disabled={scanning || screenshots.length === 0}
-          >
-            <Text style={styles.scanButtonText}>
-              {scanning ? 'Scanning...' : 'Scan My Feed'}
-            </Text>
-          </TouchableOpacity>
-        </>
+            {/* Scan Button */}
+            <TouchableOpacity
+              style={[styles.scanButton, (scanning || screenshots.length === 0) && styles.scanButtonDisabled]}
+              onPress={runAudit}
+              disabled={scanning || screenshots.length === 0}
+            >
+              <Text style={styles.scanButtonText}>
+                {scanning ? 'Scanning...' : 'Scan My Feed'}
+              </Text>
+            </TouchableOpacity>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -479,23 +483,6 @@ const styles = StyleSheet.create({
   },
   modeLabelActive: {
     color: '#F8FAFC',
-  },
-  modeChipDisabled: {
-    opacity: 0.7,
-    borderColor: '#334155',
-  },
-  comingSoonBadge: {
-    backgroundColor: '#F59E0B',
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    marginLeft: 4,
-  },
-  comingSoonText: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#0F172A',
-    letterSpacing: 0.5,
   },
 
   // Instructions card

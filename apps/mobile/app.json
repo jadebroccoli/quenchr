@@ -42,6 +42,13 @@
         {
           "photosPermission": "Quenchr needs access to your photos to scan your feed screenshots."
         }
+      ],
+      [
+        "react-native-nitro-screen-recorder",
+        {
+          "enableCameraPermission": false,
+          "enableMicrophonePermission": false
+        }
       ]
     ],
     "extra": {

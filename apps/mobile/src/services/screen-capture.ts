@@ -1,10 +1,19 @@
 /**
- * Screen capture service — STUBBED for MVP.
+ * Screen capture service — powered by react-native-nitro-screen-recorder.
  *
- * react-native-nitro-screen-recorder was removed because it breaks EAS builds.
- * Live scan (screen recording) is a V2 feature. These stubs keep the rest of
- * the codebase compiling without the native module.
+ * Uses Global Recording (MediaProjection on Android, ReplayKit on iOS)
+ * to record the screen while the user scrolls their social media feed,
+ * then extracts frames via expo-video-thumbnails for NSFW classification.
  */
+
+import {
+  startGlobalRecording,
+  stopGlobalRecording,
+  clearCache,
+} from 'react-native-nitro-screen-recorder';
+import * as VideoThumbnails from 'expo-video-thumbnails';
+
+// ── Types ──
 
 export type RecordingStatus = 'idle' | 'requesting_permission' | 'recording' | 'stopping' | 'extracting';
 
@@ -14,35 +23,164 @@ export interface FrameExtractionProgress {
   percentComplete: number;
 }
 
+// ── Internal State ──
+
+let _status: RecordingStatus = 'idle';
+let _recordingStartTime: number | null = null;
+let _lastVideoPath: string | null = null;
+let _recordingError: string | null = null;
+
+// ── Public API ──
+
 export function getStatus(): RecordingStatus {
-  return 'idle';
+  return _status;
 }
 
+/**
+ * Screen recording permission is handled by the OS when recording starts:
+ * - Android: MediaProjection shows its own system permission dialog
+ * - iOS: ReplayKit shows the broadcast picker
+ *
+ * We always return true here — the actual permission prompt happens inside
+ * startScreenRecording(). If the user denies, startScreenRecording will throw.
+ */
 export async function requestRecordingPermission(): Promise<boolean> {
-  return false;
+  return true;
 }
 
+/**
+ * Start global screen recording (records all apps, not just ours).
+ * On Android this triggers the MediaProjection permission dialog.
+ * On iOS this shows the ReplayKit broadcast picker.
+ */
 export async function startScreenRecording(): Promise<void> {
-  throw new Error('Screen recording is not available in this build.');
+  if (_status === 'recording') {
+    throw new Error('Already recording');
+  }
+
+  _status = 'requesting_permission';
+  _recordingError = null;
+
+  try {
+    startGlobalRecording({
+      options: { enableMic: false },
+      onRecordingError: (error) => {
+        console.error('[screen-capture] Recording error:', error.message);
+        _recordingError = error.message;
+        _status = 'idle';
+        _recordingStartTime = null;
+      },
+    });
+
+    _status = 'recording';
+    _recordingStartTime = Date.now();
+  } catch (err) {
+    _status = 'idle';
+    _recordingStartTime = null;
+    throw err;
+  }
 }
 
+/**
+ * Stop recording and return the video file path.
+ * settledTimeMs gives the encoder time to flush final frames.
+ */
 export async function stopScreenRecording(): Promise<string> {
-  throw new Error('Screen recording is not available in this build.');
+  if (_status !== 'recording') {
+    throw new Error('Not currently recording');
+  }
+
+  _status = 'stopping';
+
+  try {
+    const file = await stopGlobalRecording({ settledTimeMs: 500 });
+
+    if (!file) {
+      throw new Error('Recording stopped but no file was returned');
+    }
+
+    _lastVideoPath = file.path;
+    _status = 'idle';
+    _recordingStartTime = null;
+
+    return file.path;
+  } catch (err) {
+    _status = 'idle';
+    _recordingStartTime = null;
+    throw err;
+  }
 }
 
+/**
+ * Get the current recording duration in seconds.
+ * Returns 0 if not recording.
+ */
 export function getRecordingDuration(): number {
-  return 0;
+  if (_recordingStartTime === null) return 0;
+  return Math.floor((Date.now() - _recordingStartTime) / 1000);
 }
 
+/**
+ * Extract frames from a recorded video at regular intervals.
+ *
+ * Uses expo-video-thumbnails to grab frames every `intervalMs` milliseconds.
+ * On Android, frames snap to nearest keyframe (close enough for feed scanning).
+ *
+ * @param uri - Path to the video file (from stopScreenRecording)
+ * @param intervalMs - Time between frames in ms (default 2000 = every 2 seconds)
+ * @param maxFrames - Maximum number of frames to extract (default 30)
+ * @param onProgress - Progress callback
+ * @returns Array of frame image URIs
+ */
 export async function extractFrames(
-  _uri: string,
-  _intervalMs = 2000,
-  _maxFrames = 30,
-  _onProgress?: (progress: FrameExtractionProgress) => void,
+  uri: string,
+  intervalMs = 2000,
+  maxFrames = 30,
+  onProgress?: (progress: FrameExtractionProgress) => void,
 ): Promise<string[]> {
-  return [];
+  _status = 'extracting';
+  const frameUris: string[] = [];
+
+  try {
+    // Estimate total frames based on recording duration
+    // We don't know exact video duration, so extract until we hit an error or maxFrames
+    let timeMs = 0;
+    let consecutiveErrors = 0;
+
+    while (frameUris.length < maxFrames && consecutiveErrors < 3) {
+      try {
+        const { uri: frameUri } = await VideoThumbnails.getThumbnailAsync(uri, {
+          time: timeMs,
+          quality: 0.8,
+        });
+
+        frameUris.push(frameUri);
+        consecutiveErrors = 0;
+
+        onProgress?.({
+          currentFrame: frameUris.length,
+          totalFrames: maxFrames, // Estimated — we update as we go
+          percentComplete: Math.min((frameUris.length / maxFrames) * 100, 100),
+        });
+      } catch {
+        // Past end of video or extraction error — count consecutive failures
+        consecutiveErrors++;
+      }
+
+      timeMs += intervalMs;
+    }
+  } finally {
+    _status = 'idle';
+  }
+
+  return frameUris;
 }
 
+/**
+ * Clean up cached recording files to free storage.
+ */
 export async function cleanupRecording(): Promise<void> {
-  // No-op
+  clearCache();
+  _lastVideoPath = null;
+  _recordingError = null;
 }
