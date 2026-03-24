@@ -5,17 +5,26 @@ import type { SubscriptionTier } from '@quenchr/shared';
 interface SubscriptionState {
   tier: SubscriptionTier;
   limits: typeof FREE_TIER_LIMITS | typeof PRO_TIER_LIMITS;
+  devMode: boolean;
   setTier: (tier: SubscriptionTier) => void;
+  setDevMode: (enabled: boolean) => void;
   isPro: () => boolean;
 }
 
 export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
   tier: 'free',
   limits: FREE_TIER_LIMITS,
+  devMode: false,
   setTier: (tier) =>
     set({
       tier,
       limits: tier === 'pro' ? PRO_TIER_LIMITS : FREE_TIER_LIMITS,
     }),
-  isPro: () => get().tier === 'pro',
+  setDevMode: (enabled) =>
+    set({
+      devMode: enabled,
+      // When dev mode is on, act as pro; when off, respect actual tier
+      limits: enabled || get().tier === 'pro' ? PRO_TIER_LIMITS : FREE_TIER_LIMITS,
+    }),
+  isPro: () => get().devMode || get().tier === 'pro',
 }));

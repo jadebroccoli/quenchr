@@ -47,7 +47,12 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.title}>Profile</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>Profile</Text>
+          <TouchableOpacity onPress={() => router.push('/settings')} style={styles.settingsButton}>
+            <Text style={styles.settingsIcon}>{'\u2699\uFE0F'}</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* User Info */}
         <View style={styles.card}>
@@ -154,6 +159,17 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '800',
     color: '#F8FAFC',
+  },
+  titleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  settingsButton: {
+    padding: 8,
+  },
+  settingsIcon: {
+    fontSize: 24,
   },
   card: {
     backgroundColor: '#1E293B',
