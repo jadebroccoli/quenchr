@@ -9,6 +9,7 @@
 import {
   startGlobalRecording,
   stopGlobalRecording,
+  retrieveLastGlobalRecording,
   clearCache,
 } from 'react-native-nitro-screen-recorder';
 import * as VideoThumbnails from 'expo-video-thumbnails';
@@ -110,8 +111,18 @@ export async function startScreenRecording(): Promise<void> {
 }
 
 /**
+ * Helper: wait for `ms` milliseconds.
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
  * Stop recording and return the video file URI.
- * settledTimeMs gives the encoder time to flush final frames.
+ *
+ * Android's MediaProjection can be slow to finalize the video file.
+ * `stopGlobalRecording` may return undefined even though the file exists.
+ * We retry with `retrieveLastGlobalRecording()` as a fallback.
  */
 export async function stopScreenRecording(): Promise<string> {
   if (_status !== 'recording') {
@@ -121,10 +132,26 @@ export async function stopScreenRecording(): Promise<string> {
   _status = 'stopping';
 
   try {
-    const file = await stopGlobalRecording({ settledTimeMs: 1000 });
+    // Give the encoder extra time to flush on Android
+    const settledMs = Platform.OS === 'android' ? 2000 : 1000;
+    let file = await stopGlobalRecording({ settledTimeMs: settledMs });
+
+    // Fallback: if stopGlobalRecording didn't return a file, poll retrieveLastGlobalRecording
+    if (!file) {
+      console.warn('[screen-capture] stopGlobalRecording returned no file, polling retrieveLastGlobalRecording...');
+      for (let attempt = 0; attempt < 5; attempt++) {
+        await sleep(1000);
+        file = retrieveLastGlobalRecording();
+        if (file) {
+          console.log(`[screen-capture] Retrieved file on attempt ${attempt + 1}`);
+          break;
+        }
+        console.log(`[screen-capture] Attempt ${attempt + 1}: no file yet...`);
+      }
+    }
 
     if (!file) {
-      throw new Error('Recording stopped but no file was returned');
+      throw new Error('Recording stopped but no file was returned. The video encoder may have failed to finalize.');
     }
 
     console.log('[screen-capture] Recording saved:', file.path, 'size:', file.size, 'duration:', file.duration);
