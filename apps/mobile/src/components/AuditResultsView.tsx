@@ -20,8 +20,7 @@ interface Props {
 
 export function AuditResultsView({ onNewAudit, onStartCleanup }: Props) {
   const { currentAudit, aiInsights, imageResults, setAIInsightsStatus, setAIInsightsResult, setAIInsightsError } = useAuditStore();
-  const { tier } = useSubscriptionStore();
-  const isPro = tier === 'pro';
+  const isPro = useSubscriptionStore((s) => s.isPro());
 
   const scoreAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
