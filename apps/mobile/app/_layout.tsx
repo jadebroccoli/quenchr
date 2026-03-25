@@ -3,7 +3,14 @@ import { View, ActivityIndicator, StyleSheet, Platform } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
-import Purchases from 'react-native-purchases';
+
+// RevenueCat requires native module — guard for dev builds without it
+let Purchases: any = null;
+try {
+  Purchases = require('react-native-purchases').default;
+} catch {
+  console.warn('[layout] react-native-purchases not available in this build');
+}
 import {
   DMSerifDisplay_400Regular,
 } from '@expo-google-fonts/dm-serif-display';
@@ -30,8 +37,10 @@ export default function RootLayout() {
     DMSans_700Bold,
   });
 
-  // Initialize RevenueCat
+  // Initialize RevenueCat (only if native module is available)
   useEffect(() => {
+    if (!Purchases) return;
+
     const rcApiKey = Platform.OS === 'ios'
       ? process.env.EXPO_PUBLIC_RC_IOS_API_KEY ?? ''
       : process.env.EXPO_PUBLIC_RC_ANDROID_API_KEY ?? '';
