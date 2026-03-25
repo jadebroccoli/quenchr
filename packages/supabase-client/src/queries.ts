@@ -48,6 +48,10 @@ export async function updateFeedAudit(
   data: {
     feed_score?: number;
     scan_type?: 'nsfwjs' | 'haiku';
+    nsfw_detected?: number;
+    sexy_detected?: number;
+    neutral_detected?: number;
+    total_scanned?: number;
   },
 ) {
   return supabase.from('feed_audits').update(data).eq('id', auditId).select().single();

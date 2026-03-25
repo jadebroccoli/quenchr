@@ -102,26 +102,34 @@ async function processClassificationResults(
 
     scanWithHaiku(frameUris, selectedPlatform)
       .then(async (haikuResult: HaikuScanResult) => {
-        // Override the feed score with Haiku's more accurate score
-        const haikuScore = haikuResult.overall_score;
+        // Override with Haiku's more accurate classification
+        const haikuScore = haikuResult.suggestive_percent;
+        const haikuCounts = haikuResult.category_counts;
+        const totalFrames = haikuResult.total_frames;
+        const flaggedCount = haikuCounts.suggestive + haikuCounts.explicit;
+        const cleanCount = haikuCounts.clean + haikuCounts.mild;
 
-        // Update the audit record in Supabase
+        // Update the audit record with Haiku-derived counts
+        const updatedFields = {
+          feed_score: haikuScore,
+          nsfw_detected: haikuCounts.explicit,
+          sexy_detected: haikuCounts.suggestive + haikuCounts.mild,
+          neutral_detected: haikuCounts.clean,
+          total_scanned: totalFrames,
+          scan_type: 'haiku' as const,
+        };
+
         if (auditId && userId) {
-          const { data: updatedAudit } = await updateFeedAudit(auditId, {
-            feed_score: haikuScore,
-            scan_type: 'haiku',
-          });
+          const { data: updatedAudit } = await updateFeedAudit(auditId, updatedFields);
           if (updatedAudit) {
             callbacks.setCurrentAudit(updatedAudit as FeedAudit);
           }
         } else {
-          // Local-only: update the current audit directly
           const currentAudit = useAuditStore.getState().currentAudit;
           if (currentAudit) {
             callbacks.setCurrentAudit({
               ...currentAudit,
-              feed_score: haikuScore,
-              scan_type: 'haiku',
+              ...updatedFields,
             } as FeedAudit);
           }
         }
