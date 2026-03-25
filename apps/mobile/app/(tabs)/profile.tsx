@@ -47,8 +47,7 @@ export default function ProfileScreen() {
   }
 
   function handleUpgrade() {
-    // TODO: Phase 5 - RevenueCat integration
-    Alert.alert('Coming Soon', 'Pro subscriptions will be available in the next update.');
+    router.push('/paywall');
   }
 
   return (

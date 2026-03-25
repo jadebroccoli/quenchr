@@ -35,7 +35,7 @@ export default function ChallengesScreen() {
     if (uc.completed || !user) return;
 
     if (uc.challenge.is_premium && !isPro) {
-      Alert.alert('Pro Feature', 'Upgrade to Pro to access premium challenges.');
+      router.push('/paywall');
       return;
     }
 

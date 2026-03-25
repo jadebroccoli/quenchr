@@ -122,11 +122,7 @@ export default function CleanupScreen() {
 
   async function handleStepComplete() {
     if (tasksCompletedToday >= limits.tasksPerDay && !isPro) {
-      Alert.alert(
-        'Daily Limit Reached',
-        'Upgrade to Pro for unlimited daily cleanup tasks.',
-        [{ text: 'OK' }]
-      );
+      router.push('/paywall');
       return;
     }
 

@@ -234,7 +234,19 @@ export default function AuditScreen() {
               { value: 'tiktok' as Platform, label: 'TikTok' },
             ]}
             selected={selectedPlatform}
-            onSelect={setSelectedPlatform}
+            onSelect={(platform) => {
+              // Gate 2nd platform behind Pro
+              const isPro = useSubscriptionStore.getState().isPro();
+              if (platform !== selectedPlatform && !isPro) {
+                // Allow the first platform they pick, gate subsequent switches
+                const audits = useAuditStore.getState().audits;
+                if (audits.length > 0) {
+                  router.push('/paywall');
+                  return;
+                }
+              }
+              setSelectedPlatform(platform);
+            }}
           />
 
           {/* Mode pills */}

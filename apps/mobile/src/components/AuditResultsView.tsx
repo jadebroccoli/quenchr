@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import {
   getFeedHealthInfo,
   getAuditBreakdown,
@@ -19,6 +20,7 @@ interface Props {
 }
 
 export function AuditResultsView({ onNewAudit, onStartCleanup }: Props) {
+  const router = useRouter();
   const { currentAudit, aiInsights, imageResults, setAIInsightsStatus, setAIInsightsResult, setAIInsightsError } = useAuditStore();
   const isPro = useSubscriptionStore((s) => s.isPro());
 
@@ -147,6 +149,7 @@ export function AuditResultsView({ onNewAudit, onStartCleanup }: Props) {
           <AIInsightsSection
             aiInsights={aiInsights}
             isPro={isPro}
+            onUpgrade={() => router.push('/paywall')}
             onRetry={() => {
               // Retry AI analysis with existing data
               if (imageResults && currentAudit) {
