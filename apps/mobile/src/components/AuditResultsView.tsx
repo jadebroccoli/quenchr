@@ -89,7 +89,7 @@ export function AuditResultsView({ onNewAudit, onStartCleanup }: Props) {
         {/* AI-Enhanced badge */}
         {isHaikuEnhanced && (
           <View style={styles.aiEnhancedBadge}>
-            <Text style={styles.aiEnhancedText}>Powered by Claude</Text>
+            <Text style={styles.aiEnhancedText}>Powered by Quenchr AI</Text>
           </View>
         )}
 
