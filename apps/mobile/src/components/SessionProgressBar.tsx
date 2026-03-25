@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, Animated } from 'react-native';
 import { useEffect, useRef } from 'react';
 import type { CleanupPriority } from '@quenchr/shared';
 import { getPhaseInfo } from '@quenchr/shared';
+import { colors, type as typ, radius, spacing } from '../tokens';
 
 interface Props {
   currentStep: number;
@@ -61,11 +62,11 @@ export function SessionProgressBar({ currentStep, totalSteps, currentPriority }:
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 24,
+    paddingHorizontal: spacing.pagePad,
     paddingVertical: 16,
-    backgroundColor: '#1E293B',
+    backgroundColor: colors.char2,
     borderBottomWidth: 1,
-    borderBottomColor: '#334155',
+    borderBottomColor: colors.char4,
   },
   header: {
     flexDirection: 'row',
@@ -74,30 +75,30 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   phaseLabel: {
+    ...typ.btn,
     fontSize: 16,
-    fontWeight: '700',
-    color: '#F8FAFC',
+    color: colors.lt,
   },
   stepCounter: {
-    fontSize: 14,
+    ...typ.body,
     fontWeight: '600',
-    color: '#6366F1',
+    color: colors.gold,
   },
   phaseSubtitle: {
-    fontSize: 13,
-    color: '#94A3B8',
+    ...typ.body,
+    color: colors.lt3,
     marginBottom: 12,
   },
   track: {
     height: 6,
-    backgroundColor: '#334155',
+    backgroundColor: colors.char4,
     borderRadius: 3,
     overflow: 'hidden',
     position: 'relative',
   },
   fill: {
     height: '100%',
-    backgroundColor: '#6366F1',
+    backgroundColor: colors.gold,
     borderRadius: 3,
   },
   marker: {
@@ -106,15 +107,15 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#475569',
+    backgroundColor: colors.lt4,
     marginLeft: -5,
   },
   markerCompleted: {
-    backgroundColor: '#22C55E',
+    backgroundColor: colors.brown,
   },
   markerActive: {
-    backgroundColor: '#6366F1',
+    backgroundColor: colors.gold,
     borderWidth: 2,
-    borderColor: '#F8FAFC',
+    borderColor: colors.lt,
   },
 });

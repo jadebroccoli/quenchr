@@ -11,6 +11,7 @@ import { useSubscriptionStore } from '../stores/subscription-store';
 import { ShareableScoreCard, type ShareableScoreCardHandle } from './ShareableScoreCard';
 import { AIInsightsSection } from './AIInsightsSection';
 import { selectFlaggedFrames, analyzeWithAI } from '../services/ai-insights';
+import { colors, type as typ, radius, spacing } from '../tokens';
 
 interface Props {
   onNewAudit: () => void;
@@ -98,25 +99,25 @@ export function AuditResultsView({ onNewAudit, onStartCleanup }: Props) {
             <BreakdownBar
               label="Suggestive"
               percent={breakdown.suggestivePercent}
-              color="#EF4444"
+              color={colors.red}
               anim={bar1Anim}
             />
             <BreakdownBar
               label="Explicit"
               percent={breakdown.explicitPercent}
-              color="#DC2626"
+              color={colors.red}
               anim={bar2Anim}
             />
             <BreakdownBar
               label="Sexy"
               percent={breakdown.sexyPercent}
-              color="#F97316"
+              color={colors.gold}
               anim={bar3Anim}
             />
             <BreakdownBar
               label="Clean"
               percent={breakdown.cleanPercent}
-              color="#22C55E"
+              color={colors.brown}
               anim={bar4Anim}
             />
           </View>
@@ -129,13 +130,13 @@ export function AuditResultsView({ onNewAudit, onStartCleanup }: Props) {
             <Text style={styles.statLabel}>Regions</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={[styles.statValue, { color: '#EF4444' }]}>
+            <Text style={[styles.statValue, { color: colors.red }]}>
               {(audit?.nsfw_detected ?? 0) + (audit?.sexy_detected ?? 0)}
             </Text>
             <Text style={styles.statLabel}>Flagged</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={[styles.statValue, { color: '#22C55E' }]}>
+            <Text style={[styles.statValue, { color: colors.brown }]}>
               {audit?.neutral_detected ?? 0}
             </Text>
             <Text style={styles.statLabel}>Clean</Text>
@@ -241,17 +242,18 @@ function BreakdownBar({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: colors.cream,
   },
   content: {
-    padding: 24,
+    padding: spacing.pagePad,
     alignItems: 'center',
-    gap: 16,
+    gap: spacing.sectionGap,
     paddingBottom: 40,
   },
   scoreText: {
+    ...typ.bigNum,
     fontSize: 72,
-    fontWeight: '900',
+    lineHeight: 72,
     marginTop: 16,
   },
   badgeRow: {
@@ -260,35 +262,28 @@ const styles = StyleSheet.create({
   badge: {
     paddingHorizontal: 16,
     paddingVertical: 6,
-    borderRadius: 20,
+    borderRadius: radius.badge,
   },
   badgeText: {
-    fontSize: 14,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
+    ...typ.eyebrow,
   },
   hookText: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#F8FAFC',
+    ...typ.h3,
+    color: colors.ink,
     textAlign: 'center',
     lineHeight: 28,
     paddingHorizontal: 8,
   },
   breakdownCard: {
     width: '100%',
-    backgroundColor: '#1E293B',
-    borderRadius: 16,
-    padding: 20,
+    backgroundColor: colors.char2,
+    borderRadius: radius.card,
+    padding: spacing.cardPad,
     gap: 12,
   },
   breakdownTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#94A3B8',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    ...typ.label,
+    color: colors.lt3,
     marginBottom: 4,
   },
   barRow: {
@@ -297,14 +292,14 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   barLabel: {
-    fontSize: 13,
-    color: '#CBD5E1',
+    ...typ.bodySmall,
+    color: colors.lt2,
     width: 80,
   },
   barTrack: {
     flex: 1,
     height: 8,
-    backgroundColor: '#334155',
+    backgroundColor: colors.char4,
     borderRadius: 4,
     overflow: 'hidden',
   },
@@ -313,76 +308,69 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   barPercent: {
-    fontSize: 13,
-    fontWeight: '700',
+    ...typ.btnSm,
     width: 40,
     textAlign: 'right',
   },
   statsRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: spacing.cardGap,
     width: '100%',
   },
   statCard: {
     flex: 1,
-    backgroundColor: '#1E293B',
-    borderRadius: 12,
+    backgroundColor: colors.char2,
+    borderRadius: radius.stat,
     padding: 16,
     alignItems: 'center',
   },
   statValue: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#F8FAFC',
+    ...typ.statNum,
+    color: colors.lt,
   },
   statLabel: {
-    fontSize: 11,
-    color: '#94A3B8',
+    ...typ.label,
+    color: colors.lt3,
     marginTop: 4,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
   shareButton: {
     width: '100%',
-    backgroundColor: '#1E1B4B',
-    borderRadius: 12,
+    backgroundColor: colors.gold + '20',
+    borderRadius: radius.btn,
     padding: 16,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#6366F1',
+    borderColor: colors.gold,
   },
   shareButtonText: {
-    color: '#A5B4FC',
-    fontSize: 15,
-    fontWeight: '700',
+    ...typ.btn,
+    color: colors.gold,
   },
   actions: {
     flexDirection: 'row',
-    gap: 12,
+    gap: spacing.cardGap,
     width: '100%',
   },
   secondaryButton: {
     flex: 1,
-    backgroundColor: '#334155',
-    borderRadius: 12,
+    backgroundColor: colors.char4,
+    borderRadius: radius.btn,
     padding: 16,
     alignItems: 'center',
   },
   secondaryButtonText: {
-    color: '#F8FAFC',
-    fontSize: 15,
-    fontWeight: '600',
+    ...typ.btn,
+    color: colors.lt,
   },
   primaryButton: {
     flex: 1,
-    backgroundColor: '#6366F1',
-    borderRadius: 12,
+    backgroundColor: colors.brown,
+    borderRadius: radius.btn,
     padding: 16,
     alignItems: 'center',
   },
   primaryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
+    ...typ.btn,
+    color: colors.lt,
   },
 });

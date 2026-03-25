@@ -11,6 +11,7 @@ import {
   getRecordingDuration,
   cleanupRecording,
 } from '../services/screen-capture';
+import { colors, type as typ, radius, spacing } from '../tokens';
 
 interface Props {
   platform: Platform;
@@ -78,7 +79,6 @@ export function LiveScanView({ platform, onFramesExtracted, onCancel }: Props) {
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active' && liveScanState === 'recording') {
-        // User returned — they can now see the Stop button
         setRecordingDuration(getRecordingDuration());
       }
     });
@@ -89,7 +89,6 @@ export function LiveScanView({ platform, onFramesExtracted, onCancel }: Props) {
     setError(null);
 
     try {
-      // Request permission
       setLiveScanState('idle');
       const granted = await requestRecordingPermission();
       if (!granted) {
@@ -97,7 +96,6 @@ export function LiveScanView({ platform, onFramesExtracted, onCancel }: Props) {
         return;
       }
 
-      // Start recording
       await startScreenRecording();
       setLiveScanState('recording');
       setRecordingDuration(0);
@@ -127,11 +125,8 @@ export function LiveScanView({ platform, onFramesExtracted, onCancel }: Props) {
         return;
       }
 
-      // Clean up video file — we only need the frames now
       await cleanupRecording();
       setFrameExtractionProgress(null);
-
-      // Pass frames to parent for classification
       onFramesExtracted(frameUris);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to process recording';
@@ -150,7 +145,6 @@ export function LiveScanView({ platform, onFramesExtracted, onCancel }: Props) {
   if (liveScanState === 'recording') {
     return (
       <View style={styles.stateContainer}>
-        {/* Pulsing red dot */}
         <View style={styles.recordingHeader}>
           <Animated.View style={[styles.redDot, { transform: [{ scale: pulseAnim }] }]} />
           <Text style={styles.recordingLabel}>Recording</Text>
@@ -174,7 +168,6 @@ export function LiveScanView({ platform, onFramesExtracted, onCancel }: Props) {
   if (liveScanState === 'stopping' || liveScanState === 'extracting_frames') {
     return (
       <View style={styles.stateContainer}>
-        <Text style={styles.extractIcon}>🎬</Text>
         <Text style={styles.extractLabel}>
           {liveScanState === 'stopping' ? 'Finishing recording...' : 'Extracting frames...'}
         </Text>
@@ -210,15 +203,13 @@ export function LiveScanView({ platform, onFramesExtracted, onCancel }: Props) {
 
       {/* Start button */}
       <TouchableOpacity style={styles.startButton} onPress={handleStartRecording}>
-        <Text style={styles.startButtonEmoji}>🔴</Text>
         <Text style={styles.startButtonText}>Start Recording</Text>
       </TouchableOpacity>
 
       {/* Privacy note */}
       <View style={styles.privacyCard}>
-        <Text style={styles.privacyIcon}>🔒</Text>
         <Text style={styles.privacyText}>
-          Recording stays on your device. Only extracted frames are analyzed — then everything is deleted.
+          Recording stays on device. Only extracted frames are analyzed — then deleted. We have enough problems of our own.
         </Text>
       </View>
 
@@ -249,127 +240,107 @@ const styles = StyleSheet.create({
     width: 16,
     height: 16,
     borderRadius: 8,
-    backgroundColor: '#EF4444',
+    backgroundColor: colors.red,
   },
   recordingLabel: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#EF4444',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
+    ...typ.label,
+    color: colors.red,
+    fontSize: 14,
   },
   timer: {
-    fontSize: 56,
-    fontWeight: '900',
-    color: '#F8FAFC',
+    ...typ.bigNum,
+    color: colors.ink,
     fontVariant: ['tabular-nums'],
   },
   recordingInstruction: {
-    fontSize: 15,
-    color: '#94A3B8',
+    ...typ.body,
+    color: colors.ink3,
     textAlign: 'center',
-    lineHeight: 22,
     paddingHorizontal: 16,
   },
   stopButton: {
-    backgroundColor: '#EF4444',
-    borderRadius: 12,
+    backgroundColor: colors.red,
+    borderRadius: radius.btn,
     paddingVertical: 16,
     paddingHorizontal: 40,
     marginTop: 16,
   },
   stopButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
+    ...typ.btn,
+    color: colors.lt,
   },
 
   // ── Extracting state ──
-  extractIcon: {
-    fontSize: 48,
-  },
   extractLabel: {
-    fontSize: 16,
-    color: '#94A3B8',
+    ...typ.body,
+    color: colors.ink3,
   },
   extractProgress: {
-    fontSize: 14,
-    color: '#64748B',
+    ...typ.caption,
+    color: colors.ink4,
   },
 
   // ── Idle state ──
   idleContainer: {
-    gap: 16,
+    gap: 14,
   },
   card: {
-    backgroundColor: '#1E293B',
-    borderRadius: 16,
-    padding: 20,
+    backgroundColor: colors.char2,
+    borderRadius: radius.card,
+    padding: spacing.cardPad,
   },
   cardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#F8FAFC',
+    ...typ.h3,
+    color: colors.lt,
     marginBottom: 12,
   },
   stepList: {
     gap: 8,
   },
   step: {
-    fontSize: 14,
-    color: '#CBD5E1',
-    lineHeight: 22,
+    ...typ.body,
+    color: colors.lt2,
   },
   errorCard: {
-    backgroundColor: '#7F1D1D',
-    borderRadius: 12,
+    backgroundColor: colors.red + '15',
+    borderWidth: 1,
+    borderColor: colors.red + '40',
+    borderRadius: radius.btn,
     padding: 14,
   },
   errorText: {
-    fontSize: 14,
-    color: '#FCA5A5',
+    ...typ.body,
+    color: colors.red,
   },
   startButton: {
-    backgroundColor: '#6366F1',
-    borderRadius: 12,
-    padding: 20,
+    backgroundColor: colors.brown,
+    borderRadius: radius.btn,
+    padding: 18,
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 10,
   },
-  startButtonEmoji: {
-    fontSize: 20,
-  },
   startButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
+    ...typ.btn,
+    color: colors.lt,
   },
   privacyCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: '#1E293B',
-    borderRadius: 12,
+    backgroundColor: colors.char3,
+    borderRadius: radius.btn,
     padding: 14,
   },
-  privacyIcon: {
-    fontSize: 20,
-  },
   privacyText: {
-    flex: 1,
-    fontSize: 13,
-    color: '#94A3B8',
-    lineHeight: 18,
+    ...typ.bodySmall,
+    color: colors.lt3,
   },
   cancelButton: {
     alignItems: 'center',
     paddingVertical: 8,
   },
   cancelText: {
-    fontSize: 14,
-    color: '#64748B',
-    fontWeight: '600',
+    ...typ.body,
+    color: colors.ink4,
+    fontFamily: 'DMSans_600SemiBold',
   },
 });

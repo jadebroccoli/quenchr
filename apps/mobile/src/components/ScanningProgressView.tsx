@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuditStore } from '../stores/audit-store';
+import { colors, type as typ, radius, spacing } from '../tokens';
 
 export function ScanningProgressView() {
   const { scanProgress, resetScan } = useAuditStore();
@@ -114,58 +115,58 @@ function getPhaseLabel(progress: ReturnType<typeof useAuditStore.getState>['scan
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: colors.cream,
   },
   content: {
     flex: 1,
-    padding: 24,
+    padding: spacing.pagePad,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 16,
+    gap: spacing.sectionGap,
   },
   scanIcon: {
     fontSize: 72,
     marginBottom: 8,
   },
   title: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#F8FAFC',
+    ...typ.h2,
+    color: colors.ink,
     textAlign: 'center',
   },
   phaseLabel: {
-    fontSize: 15,
-    color: '#94A3B8',
+    ...typ.body,
+    color: colors.ink3,
     textAlign: 'center',
   },
   progressTrack: {
     width: '100%',
     height: 8,
-    backgroundColor: '#1E293B',
+    backgroundColor: colors.cream3,
     borderRadius: 4,
     overflow: 'hidden',
     marginTop: 8,
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#6366F1',
+    backgroundColor: colors.brown,
     borderRadius: 4,
   },
   percentText: {
+    ...typ.bigNum,
     fontSize: 40,
-    fontWeight: '800',
-    color: '#6366F1',
+    lineHeight: 40,
+    color: colors.brown,
   },
   regionCounter: {
-    fontSize: 13,
-    color: '#64748B',
+    ...typ.body,
+    color: colors.ink4,
   },
   privacyCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#1E293B',
-    borderRadius: 12,
+    backgroundColor: colors.cream2,
+    borderRadius: radius.stat,
     padding: 14,
     marginTop: 24,
     width: '100%',
@@ -175,8 +176,8 @@ const styles = StyleSheet.create({
   },
   privacyText: {
     flex: 1,
-    fontSize: 13,
-    color: '#94A3B8',
+    ...typ.body,
+    color: colors.ink3,
     lineHeight: 18,
   },
   cancelButton: {
@@ -185,8 +186,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   cancelText: {
-    fontSize: 15,
-    color: '#64748B',
-    fontWeight: '600',
+    ...typ.btn,
+    color: colors.ink4,
   },
 });

@@ -4,6 +4,7 @@ import ViewShot, { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import { getFeedHealthInfo, getAuditBreakdown, PLATFORMS } from '@quenchr/shared';
 import type { FeedAudit } from '@quenchr/shared';
+import { colors, type as typ, radius, spacing } from '../tokens';
 
 export interface ShareableScoreCardHandle {
   share: () => Promise<void>;
@@ -65,8 +66,8 @@ export const ShareableScoreCard = forwardRef<ShareableScoreCardHandle, Props>(
 
             {/* Mini breakdown */}
             <View style={styles.miniBreakdown}>
-              <MiniBar label="Suggestive" percent={breakdown.suggestivePercent} color="#EF4444" />
-              <MiniBar label="Clean" percent={breakdown.cleanPercent} color="#22C55E" />
+              <MiniBar label="Suggestive" percent={breakdown.suggestivePercent} color={colors.red} />
+              <MiniBar label="Clean" percent={breakdown.cleanPercent} color={colors.brown} />
             </View>
 
             {/* Footer */}
@@ -100,43 +101,41 @@ const styles = StyleSheet.create({
     width: 360,
     paddingVertical: 40,
     paddingHorizontal: 32,
-    backgroundColor: '#0F172A',
+    backgroundColor: colors.char,
     alignItems: 'center',
     gap: 12,
   },
   brand: {
+    ...typ.eyebrow,
     fontSize: 18,
-    fontWeight: '800',
-    color: '#6366F1',
+    color: colors.gold,
     letterSpacing: 2,
-    textTransform: 'uppercase',
     marginBottom: 4,
   },
   platform: {
-    fontSize: 14,
-    color: '#94A3B8',
+    ...typ.body,
+    color: colors.lt3,
     fontWeight: '600',
   },
   score: {
+    ...typ.bigNum,
     fontSize: 80,
-    fontWeight: '900',
+    lineHeight: 80,
     marginTop: 4,
   },
   badge: {
     paddingHorizontal: 16,
     paddingVertical: 6,
-    borderRadius: 20,
+    borderRadius: radius.badge,
   },
   badgeText: {
+    ...typ.eyebrow,
     fontSize: 13,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
   },
   hook: {
+    ...typ.h3,
     fontSize: 18,
-    fontWeight: '700',
-    color: '#F8FAFC',
+    color: colors.lt,
     textAlign: 'center',
     lineHeight: 26,
     marginTop: 8,
@@ -152,14 +151,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   miniBarLabel: {
-    fontSize: 12,
-    color: '#94A3B8',
+    ...typ.bodySmall,
+    color: colors.lt3,
     width: 70,
   },
   miniBarTrack: {
     flex: 1,
     height: 6,
-    backgroundColor: '#1E293B',
+    backgroundColor: colors.char3,
     borderRadius: 3,
     overflow: 'hidden',
   },
@@ -168,15 +167,14 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   miniBarPercent: {
+    ...typ.btnSm,
     fontSize: 12,
-    fontWeight: '700',
     width: 36,
     textAlign: 'right',
   },
   footer: {
-    fontSize: 12,
-    color: '#475569',
+    ...typ.caption,
+    color: colors.lt4,
     marginTop: 16,
-    fontWeight: '600',
   },
 });

@@ -5,13 +5,14 @@ import { PLATFORMS } from '@quenchr/shared';
 import type { Platform } from '@quenchr/shared';
 import { supabase, addUserPlatform } from '@quenchr/supabase-client';
 import { useAuthStore } from '../../src/stores/auth-store';
+import { colors, type as typ, radius, spacing } from '../../src/tokens';
 
-const AVAILABLE_PLATFORMS: { key: Platform; emoji: string }[] = [
-  { key: 'instagram', emoji: '📸' },
-  { key: 'tiktok', emoji: '🎵' },
-  { key: 'twitter', emoji: '🐦' },
-  { key: 'reddit', emoji: '🤖' },
-  { key: 'youtube', emoji: '▶️' },
+const AVAILABLE_PLATFORMS: { key: Platform; label: string }[] = [
+  { key: 'instagram', label: 'Instagram' },
+  { key: 'tiktok', label: 'TikTok' },
+  { key: 'twitter', label: 'Twitter / X' },
+  { key: 'reddit', label: 'Reddit' },
+  { key: 'youtube', label: 'YouTube' },
 ];
 
 export default function OnboardingScreen() {
@@ -41,12 +42,10 @@ export default function OnboardingScreen() {
 
     setLoading(true);
 
-    // Add selected platforms
     for (const platform of selected) {
       await addUserPlatform(user.id, platform);
     }
 
-    // Mark onboarding complete
     await supabase.from('users').update({ onboarding_complete: true }).eq('id', user.id);
 
     useAuthStore.getState().setUser({ ...user, onboarding_complete: true });
@@ -58,6 +57,7 @@ export default function OnboardingScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
+        <Text style={styles.eyebrow}>SETUP</Text>
         <Text style={styles.title}>Which platforms{'\n'}do you want to clean?</Text>
         <Text style={styles.subtitle}>
           We'll create a personalized cleanup plan for each one.
@@ -65,9 +65,8 @@ export default function OnboardingScreen() {
       </View>
 
       <View style={styles.grid}>
-        {AVAILABLE_PLATFORMS.map(({ key, emoji }) => {
+        {AVAILABLE_PLATFORMS.map(({ key, label }) => {
           const isSelected = selected.has(key);
-          const info = PLATFORMS[key];
           return (
             <TouchableOpacity
               key={key}
@@ -75,11 +74,10 @@ export default function OnboardingScreen() {
               onPress={() => togglePlatform(key)}
               activeOpacity={0.7}
             >
-              <Text style={styles.emoji}>{emoji}</Text>
               <Text style={[styles.cardLabel, isSelected && styles.cardLabelSelected]}>
-                {info.label}
+                {label}
               </Text>
-              {isSelected && <Text style={styles.checkmark}>✓</Text>}
+              {isSelected && <Text style={styles.checkmark}>{'\u2713'}</Text>}
             </TouchableOpacity>
           );
         })}
@@ -101,62 +99,62 @@ export default function OnboardingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
-    paddingHorizontal: 24,
+    backgroundColor: colors.cream,
+    paddingHorizontal: spacing.pagePad,
     paddingTop: 80,
   },
   header: {
     marginBottom: 40,
   },
+  eyebrow: {
+    ...typ.eyebrow,
+    color: colors.ink3,
+    marginBottom: 8,
+  },
   title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#F8FAFC',
-    lineHeight: 36,
+    ...typ.h1,
+    color: colors.ink,
+    lineHeight: 42,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#94A3B8',
+    ...typ.body,
+    color: colors.ink3,
     marginTop: 12,
   },
   grid: {
-    gap: 12,
+    gap: 10,
     flex: 1,
   },
   card: {
-    backgroundColor: '#1E293B',
-    borderRadius: 16,
-    padding: 20,
+    backgroundColor: colors.cream2,
+    borderRadius: radius.card,
+    padding: 18,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
-    borderWidth: 2,
-    borderColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: colors.cream3,
   },
   cardSelected: {
-    borderColor: '#6366F1',
-    backgroundColor: '#1E1B4B',
-  },
-  emoji: {
-    fontSize: 28,
+    borderColor: colors.brown,
+    backgroundColor: colors.brown + '10',
   },
   cardLabel: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#CBD5E1',
+    ...typ.h3,
+    color: colors.ink2,
     flex: 1,
   },
   cardLabelSelected: {
-    color: '#F8FAFC',
+    color: colors.ink,
   },
   checkmark: {
     fontSize: 20,
-    color: '#6366F1',
+    color: colors.brown,
     fontWeight: '700',
   },
   button: {
-    backgroundColor: '#6366F1',
-    borderRadius: 12,
+    backgroundColor: colors.brown,
+    borderRadius: radius.btn,
     padding: 16,
     alignItems: 'center',
     marginBottom: 40,
@@ -165,8 +163,7 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   buttonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
+    ...typ.btn,
+    color: colors.lt,
   },
 });

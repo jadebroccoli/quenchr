@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { getFeedHealthInfo, getAuditBreakdown } from '@quenchr/shared';
 import type { FeedAudit } from '@quenchr/shared';
+import { colors, type as typ, radius, spacing } from '../tokens';
 
 interface Props {
   audit: FeedAudit;
@@ -60,7 +61,7 @@ export function AuditResultCard({ audit, onStartCleanup, compact = false }: Prop
                 styles.barFill,
                 {
                   width: `${breakdown.suggestivePercent}%`,
-                  backgroundColor: '#EF4444',
+                  backgroundColor: colors.red,
                 },
               ]}
             />
@@ -76,7 +77,7 @@ export function AuditResultCard({ audit, onStartCleanup, compact = false }: Prop
                 styles.barFill,
                 {
                   width: `${breakdown.explicitPercent}%`,
-                  backgroundColor: '#DC2626',
+                  backgroundColor: colors.red,
                 },
               ]}
             />
@@ -92,7 +93,7 @@ export function AuditResultCard({ audit, onStartCleanup, compact = false }: Prop
                 styles.barFill,
                 {
                   width: `${breakdown.sexyPercent}%`,
-                  backgroundColor: '#F97316',
+                  backgroundColor: colors.gold,
                 },
               ]}
             />
@@ -108,7 +109,7 @@ export function AuditResultCard({ audit, onStartCleanup, compact = false }: Prop
                 styles.barFill,
                 {
                   width: `${breakdown.cleanPercent}%`,
-                  backgroundColor: '#22C55E',
+                  backgroundColor: colors.brown,
                 },
               ]}
             />
@@ -134,8 +135,8 @@ export function AuditResultCard({ audit, onStartCleanup, compact = false }: Prop
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#1E293B',
-    borderRadius: 16,
+    backgroundColor: colors.char2,
+    borderRadius: radius.card,
     overflow: 'hidden',
   },
   scoreSection: {
@@ -144,17 +145,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   scoreValue: {
+    ...typ.bigNum,
     fontSize: 64,
-    fontWeight: '800',
+    lineHeight: 64,
   },
   scoreLabel: {
+    ...typ.h3,
     fontSize: 18,
-    fontWeight: '600',
     marginTop: 4,
   },
   platformText: {
-    fontSize: 14,
-    color: '#94A3B8',
+    ...typ.body,
+    color: colors.lt3,
     marginTop: 8,
   },
   breakdownSection: {
@@ -163,11 +165,8 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   breakdownTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#64748B',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
+    ...typ.label,
+    color: colors.lt4,
     marginBottom: 4,
   },
   breakdownRow: {
@@ -176,14 +175,14 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   breakdownLabel: {
-    fontSize: 13,
-    color: '#94A3B8',
+    ...typ.body,
+    color: colors.lt3,
     width: 80,
   },
   barTrack: {
     flex: 1,
     height: 8,
-    backgroundColor: '#334155',
+    backgroundColor: colors.char4,
     borderRadius: 4,
     overflow: 'hidden',
   },
@@ -192,9 +191,8 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   breakdownPercent: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#F8FAFC',
+    ...typ.btnSm,
+    color: colors.lt,
     width: 36,
     textAlign: 'right',
   },
@@ -202,11 +200,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: '#6366F1',
+    backgroundColor: colors.brown,
     padding: 18,
     marginHorizontal: 12,
     marginBottom: 12,
-    borderRadius: 12,
+    borderRadius: radius.btn,
   },
   cleanupButtonEmoji: {
     fontSize: 24,
@@ -215,18 +213,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cleanupButtonTitle: {
+    ...typ.btn,
     fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    color: colors.lt,
   },
   cleanupButtonSubtitle: {
-    fontSize: 12,
-    color: '#C7D2FE',
+    ...typ.bodySmall,
+    color: colors.lt2,
     marginTop: 2,
   },
   cleanupArrow: {
     fontSize: 20,
-    color: '#FFFFFF',
+    color: colors.lt,
     fontWeight: '700',
   },
 
@@ -235,8 +233,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#1E293B',
-    borderRadius: 12,
+    backgroundColor: colors.char2,
+    borderRadius: radius.stat,
     padding: 16,
   },
   compactLeft: {
@@ -245,36 +243,36 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   compactScore: {
+    ...typ.statNum,
     fontSize: 32,
-    fontWeight: '800',
+    lineHeight: 32,
   },
   compactLabel: {
-    fontSize: 14,
+    ...typ.body,
+    color: colors.lt,
     fontWeight: '600',
-    color: '#F8FAFC',
   },
   compactPlatform: {
-    fontSize: 12,
-    color: '#94A3B8',
+    ...typ.bodySmall,
+    color: colors.lt3,
     textTransform: 'capitalize',
   },
   cleanupCTA: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#6366F1',
+    backgroundColor: colors.brown,
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 20,
+    borderRadius: radius.pill,
   },
   cleanupCTAText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    ...typ.btnSm,
+    color: colors.lt,
   },
   arrow: {
+    ...typ.btnSm,
     fontSize: 14,
-    color: '#FFFFFF',
-    fontWeight: '700',
+    color: colors.lt,
   },
 });

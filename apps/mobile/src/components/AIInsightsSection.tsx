@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing } from 'react-native';
 import type { AIInsightsResult, ContentType, AccountType } from '@quenchr/shared';
 import type { AIInsightsState } from '../stores/audit-store';
+import { colors, type as typ, radius, spacing } from '../tokens';
 
 // ── Content type display labels ──
 
@@ -218,17 +219,17 @@ function LockedState({ onUpgrade }: { onUpgrade?: () => void }) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#1E293B',
-    borderRadius: 16,
-    padding: 20,
+    backgroundColor: colors.char2,
+    borderRadius: radius.card,
+    padding: spacing.cardPad,
     gap: 14,
   },
   successCard: {
     borderWidth: 1,
-    borderColor: '#6366F1',
+    borderColor: colors.gold,
   },
   errorCard: {
-    backgroundColor: '#7F1D1D',
+    backgroundColor: colors.red + '30',
     alignItems: 'center',
     gap: 10,
   },
@@ -248,40 +249,39 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   headerText: {
+    ...typ.btn,
     fontSize: 16,
-    fontWeight: '700',
-    color: '#F8FAFC',
+    color: colors.lt,
     flex: 1,
   },
   proBadge: {
-    backgroundColor: '#6366F1',
+    backgroundColor: colors.gold,
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
   proBadgeText: {
+    ...typ.label,
     fontSize: 10,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: 1,
+    color: colors.lt,
   },
 
   // Loading shimmer
   shimmerBar: {
     height: 12,
-    backgroundColor: '#334155',
+    backgroundColor: colors.char4,
     borderRadius: 6,
   },
   loadingText: {
-    fontSize: 13,
-    color: '#64748B',
+    ...typ.body,
+    color: colors.lt4,
     textAlign: 'center',
   },
 
   // Summary
   summaryText: {
-    fontSize: 14,
-    color: '#CBD5E1',
+    ...typ.body,
+    color: colors.lt2,
     lineHeight: 20,
   },
 
@@ -290,11 +290,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   sectionTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#94A3B8',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    ...typ.label,
+    color: colors.lt3,
     marginBottom: 2,
   },
 
@@ -310,26 +307,25 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   barLabel: {
-    fontSize: 12,
-    color: '#CBD5E1',
+    ...typ.bodySmall,
+    color: colors.lt2,
     width: 120,
   },
   barTrack: {
     flex: 1,
     height: 8,
-    backgroundColor: '#0F172A',
+    backgroundColor: colors.char,
     borderRadius: 4,
     overflow: 'hidden',
   },
   barFill: {
     height: '100%',
-    backgroundColor: '#6366F1',
+    backgroundColor: colors.gold,
     borderRadius: 4,
   },
   barCount: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#F8FAFC',
+    ...typ.btnSm,
+    color: colors.lt,
     width: 24,
     textAlign: 'right',
   },
@@ -339,7 +335,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#0F2A1E',
+    backgroundColor: colors.brown + '20',
     borderRadius: 10,
     padding: 12,
   },
@@ -347,21 +343,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   fpText: {
-    fontSize: 13,
-    color: '#4ADE80',
+    ...typ.body,
+    color: colors.brown3,
     fontWeight: '600',
     flex: 1,
   },
   fpScore: {
-    fontSize: 12,
-    color: '#86EFAC',
+    ...typ.bodySmall,
+    color: colors.brown2,
   },
 
   // Recommendations
   recCard: {
     flexDirection: 'row',
     gap: 12,
-    backgroundColor: '#0F172A',
+    backgroundColor: colors.char,
     borderRadius: 10,
     padding: 12,
   },
@@ -369,27 +365,26 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#6366F1',
+    backgroundColor: colors.gold,
     alignItems: 'center',
     justifyContent: 'center',
   },
   recNumberText: {
+    ...typ.caption,
     fontSize: 12,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    color: colors.lt,
   },
   recContent: {
     flex: 1,
     gap: 2,
   },
   recTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#F8FAFC',
+    ...typ.btnSm,
+    color: colors.lt,
   },
   recDesc: {
-    fontSize: 12,
-    color: '#94A3B8',
+    ...typ.bodySmall,
+    color: colors.lt3,
     lineHeight: 16,
   },
 
@@ -398,21 +393,20 @@ const styles = StyleSheet.create({
     fontSize: 28,
   },
   errorText: {
-    fontSize: 13,
-    color: '#FCA5A5',
+    ...typ.body,
+    color: colors.red,
     textAlign: 'center',
     lineHeight: 18,
   },
   retryButton: {
-    backgroundColor: '#991B1B',
+    backgroundColor: colors.red + '30',
     borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 20,
   },
   retryText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#FCA5A5',
+    ...typ.btnSm,
+    color: colors.red,
   },
 
   // Locked
@@ -420,27 +414,26 @@ const styles = StyleSheet.create({
     fontSize: 32,
   },
   lockedTitle: {
+    ...typ.btn,
     fontSize: 16,
-    fontWeight: '700',
-    color: '#F8FAFC',
+    color: colors.lt,
   },
   lockedDesc: {
-    fontSize: 13,
-    color: '#94A3B8',
+    ...typ.body,
+    color: colors.lt3,
     textAlign: 'center',
     lineHeight: 18,
     paddingHorizontal: 12,
   },
   upgradeButton: {
-    backgroundColor: '#6366F1',
-    borderRadius: 10,
+    backgroundColor: colors.brown,
+    borderRadius: radius.btn,
     paddingVertical: 10,
     paddingHorizontal: 28,
     marginTop: 4,
   },
   upgradeText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    ...typ.btn,
+    color: colors.lt,
   },
 });

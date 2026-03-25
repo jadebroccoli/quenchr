@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import type { CleanupSessionStep } from '@quenchr/shared';
 import { getPhaseInfo } from '@quenchr/shared';
+import { colors, type as typ, radius, spacing } from '../tokens';
 
 interface Props {
   step: CleanupSessionStep;
@@ -21,10 +22,10 @@ interface Props {
 }
 
 const PRIORITY_COLORS: Record<string, string> = {
-  critical: '#EF4444',
-  high: '#F97316',
-  medium: '#EAB308',
-  maintenance: '#94A3B8',
+  critical: colors.red,
+  high: colors.gold,
+  medium: colors.cream4,
+  maintenance: colors.cream3,
 };
 
 export function CleanupStepView({ step, stepIndex, onComplete, onSkip, saving }: Props) {
@@ -33,7 +34,6 @@ export function CleanupStepView({ step, stepIndex, onComplete, onSkip, saving }:
   const [timerActive, setTimerActive] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  // Fade in on mount
   useEffect(() => {
     fadeAnim.setValue(0);
     Animated.timing(fadeAnim, {
@@ -46,7 +46,6 @@ export function CleanupStepView({ step, stepIndex, onComplete, onSkip, saving }:
     setTimerActive(false);
   }, [stepIndex]);
 
-  // Timer
   useEffect(() => {
     if (!timerActive) return;
     const interval = setInterval(() => {
@@ -75,7 +74,7 @@ export function CleanupStepView({ step, stepIndex, onComplete, onSkip, saving }:
     onComplete();
   }
 
-  const priorityColor = PRIORITY_COLORS[step.priority] || '#94A3B8';
+  const priorityColor = PRIORITY_COLORS[step.priority] || colors.cream4;
   const phase = getPhaseInfo(step.priority);
 
   return (
@@ -103,9 +102,7 @@ export function CleanupStepView({ step, stepIndex, onComplete, onSkip, saving }:
 
         {/* Estimated time */}
         <View style={styles.metaRow}>
-          <Text style={styles.metaText}>
-            ~{step.estimatedMinutes} min
-          </Text>
+          <Text style={styles.metaText}>~{step.estimatedMinutes} min</Text>
           {timerActive && (
             <Text style={styles.timerText}>{formatTime(elapsedSeconds)}</Text>
           )}
@@ -119,7 +116,7 @@ export function CleanupStepView({ step, stepIndex, onComplete, onSkip, saving }:
           <Text style={styles.instructionsToggleText}>
             {showingInstructions ? 'Hide' : 'Show'} step-by-step instructions
           </Text>
-          <Text style={styles.chevron}>{showingInstructions ? '▲' : '▼'}</Text>
+          <Text style={styles.chevron}>{showingInstructions ? '\u25B2' : '\u25BC'}</Text>
         </TouchableOpacity>
 
         {showingInstructions && (
@@ -140,9 +137,6 @@ export function CleanupStepView({ step, stepIndex, onComplete, onSkip, saving }:
       <View style={styles.actions}>
         {step.task.deep_link && (
           <TouchableOpacity style={styles.openAppButton} onPress={handleOpenApp}>
-            <Text style={styles.openAppEmoji}>
-              {step.task.platform === 'instagram' ? '📸' : '🎵'}
-            </Text>
             <Text style={styles.openAppText}>
               Open {step.task.platform === 'instagram' ? 'Instagram' : 'TikTok'}
             </Text>
@@ -150,12 +144,12 @@ export function CleanupStepView({ step, stepIndex, onComplete, onSkip, saving }:
         )}
 
         <TouchableOpacity
-          style={[styles.doneButton, saving && { opacity: 0.6 }]}
+          style={[styles.doneButton, saving && { opacity: 0.5 }]}
           onPress={handleComplete}
           disabled={saving}
         >
           {saving ? (
-            <ActivityIndicator color="#FFFFFF" size="small" />
+            <ActivityIndicator color={colors.lt} size="small" />
           ) : (
             <Text style={styles.doneButtonText}>Done</Text>
           )}
@@ -173,13 +167,13 @@ export function CleanupStepView({ step, stepIndex, onComplete, onSkip, saving }:
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 24,
-    gap: 16,
+    padding: spacing.pagePad,
+    gap: 14,
   },
   reasonCard: {
-    backgroundColor: '#1E293B',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: colors.char2,
+    borderRadius: radius.card,
+    padding: spacing.cardPad,
     gap: 8,
   },
   priorityBadge: {
@@ -197,20 +191,17 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   priorityText: {
-    fontSize: 12,
-    fontWeight: '700',
+    ...typ.caption,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
   reasonText: {
-    fontSize: 14,
-    color: '#CBD5E1',
-    lineHeight: 20,
+    ...typ.body,
+    color: colors.lt2,
   },
   taskCard: {
-    backgroundColor: '#1E293B',
-    borderRadius: 16,
-    padding: 20,
+    backgroundColor: colors.char2,
+    borderRadius: radius.card,
+    padding: spacing.cardPad,
     gap: 12,
   },
   taskHeader: {
@@ -220,26 +211,23 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   taskTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#F8FAFC',
+    ...typ.h3,
+    color: colors.lt,
     flex: 1,
   },
   pointsBadge: {
-    backgroundColor: '#1E1B4B',
-    borderRadius: 8,
+    backgroundColor: colors.gold + '20',
+    borderRadius: radius.badge,
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
   pointsText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#6366F1',
+    ...typ.btnSm,
+    color: colors.gold,
   },
   taskDescription: {
-    fontSize: 15,
-    color: '#94A3B8',
-    lineHeight: 22,
+    ...typ.body,
+    color: colors.lt3,
   },
   metaRow: {
     flexDirection: 'row',
@@ -247,13 +235,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   metaText: {
-    fontSize: 13,
-    color: '#64748B',
+    ...typ.caption,
+    color: colors.lt4,
   },
   timerText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#6366F1',
+    ...typ.h3,
+    color: colors.gold,
     fontVariant: ['tabular-nums'],
   },
   instructionsToggle: {
@@ -262,16 +249,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#334155',
+    borderTopColor: colors.char4,
   },
   instructionsToggleText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6366F1',
+    ...typ.btnSm,
+    color: colors.brown3,
   },
   chevron: {
-    fontSize: 12,
-    color: '#6366F1',
+    fontSize: 10,
+    color: colors.brown3,
   },
   instructionsList: {
     gap: 12,
@@ -286,20 +272,18 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#334155',
+    backgroundColor: colors.char4,
     alignItems: 'center',
     justifyContent: 'center',
   },
   stepNumberText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#F8FAFC',
+    ...typ.btnSm,
+    color: colors.lt,
   },
   instructionText: {
     flex: 1,
-    fontSize: 14,
-    color: '#CBD5E1',
-    lineHeight: 22,
+    ...typ.body,
+    color: colors.lt2,
     paddingTop: 3,
   },
   actions: {
@@ -308,41 +292,36 @@ const styles = StyleSheet.create({
   },
   openAppButton: {
     flex: 1,
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#334155',
-    borderRadius: 12,
-    padding: 16,
-  },
-  openAppEmoji: {
-    fontSize: 18,
+    backgroundColor: colors.cream,
+    borderWidth: 1.5,
+    borderColor: colors.brown3,
+    borderRadius: radius.btn,
+    padding: 14,
   },
   openAppText: {
-    color: '#F8FAFC',
-    fontSize: 15,
-    fontWeight: '600',
+    ...typ.btn,
+    color: colors.brown,
   },
   doneButton: {
     flex: 1,
-    backgroundColor: '#22C55E',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: colors.brown,
+    borderRadius: radius.btn,
+    padding: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
   doneButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
+    ...typ.btn,
+    color: colors.lt,
   },
   skipButton: {
     alignItems: 'center',
     paddingVertical: 8,
   },
   skipText: {
-    fontSize: 14,
-    color: '#64748B',
+    ...typ.body,
+    color: colors.ink4,
   },
 });
