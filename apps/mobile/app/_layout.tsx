@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Platform } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
+import Purchases from 'react-native-purchases';
 import {
   DMSerifDisplay_400Regular,
 } from '@expo-google-fonts/dm-serif-display';
@@ -28,6 +29,17 @@ export default function RootLayout() {
     DMSans_600SemiBold,
     DMSans_700Bold,
   });
+
+  // Initialize RevenueCat
+  useEffect(() => {
+    const rcApiKey = Platform.OS === 'ios'
+      ? process.env.EXPO_PUBLIC_RC_IOS_API_KEY ?? ''
+      : process.env.EXPO_PUBLIC_RC_ANDROID_API_KEY ?? '';
+
+    if (rcApiKey) {
+      Purchases.configure({ apiKey: rcApiKey });
+    }
+  }, []);
 
   useEffect(() => {
     // Check initial session
@@ -77,7 +89,16 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: colors.cream },
           animation: 'slide_from_right',
         }}
-      />
+      >
+        <Stack.Screen
+          name="paywall"
+          options={{
+            presentation: 'modal',
+            animation: 'slide_from_bottom',
+            contentStyle: { backgroundColor: colors.char },
+          }}
+        />
+      </Stack>
     </View>
   );
 }
