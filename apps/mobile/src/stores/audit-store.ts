@@ -146,7 +146,8 @@ export const useAuditStore = create<AuditState>((set) => ({
   resetAIInsights: () =>
     set({ aiInsights: { status: 'idle', result: null, error: null } }),
 
-  // Load latest audit from DB so results survive navigation
+  // Load latest audit from DB so results survive navigation.
+  // Also sets screenState to 'results' so the results view shows.
   fetchLatestAudit: async (userId: string) => {
     const { data, error } = await supabase
       .from('feed_audits')
@@ -157,7 +158,7 @@ export const useAuditStore = create<AuditState>((set) => ({
       .single();
 
     if (!error && data) {
-      set({ currentAudit: data as FeedAudit });
+      set({ currentAudit: data as FeedAudit, screenState: 'results' });
     }
   },
 

@@ -33,9 +33,11 @@ export function AuditResultsView({ onNewAudit, onStartCleanup }: Props) {
   const shareCardRef = useRef<ShareableScoreCardHandle>(null);
 
   const audit = currentAudit;
-  const feedScore = audit?.feed_score ?? 0;
-  const health = getFeedHealthInfo(feedScore);
   const breakdown = audit ? getAuditBreakdown(audit) : null;
+  // Use breakdown-derived score so display always matches the bars.
+  // The stored feed_score may have been computed with a different threshold.
+  const feedScore = breakdown?.suggestivePercent ?? audit?.feed_score ?? 0;
+  const health = getFeedHealthInfo(feedScore);
 
   const platformLabel = audit ? PLATFORMS[audit.platform].label : '';
   const pageName = audit?.platform === 'instagram' ? 'Explore' : 'For You Page';
