@@ -11,3 +11,4 @@ export { ScoreRing } from './ScoreRing';
 export { Dropzone } from './Dropzone';
 export { AuditBanner } from './AuditBanner';
 export { QuenchrLogo } from './QuenchrLogo';
+export { ScoreHistory } from './ScoreHistory';

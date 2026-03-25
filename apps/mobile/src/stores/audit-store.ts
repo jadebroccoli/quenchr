@@ -1,6 +1,12 @@
 import { create } from 'zustand';
 import type { FeedAudit, Platform, AuditImageResult, AIInsightsResult, AIInsightsStatus } from '@quenchr/shared';
 import type { ScanProgress } from '../services/nsfw-classifier';
+import { supabase } from '@quenchr/supabase-client';
+
+export interface AuditHistoryEntry {
+  score: number;
+  date: string;
+}
 
 export type AuditScreenState = 'input' | 'scanning' | 'results';
 export type AuditMode = 'screenshots' | 'livescan';
@@ -35,6 +41,9 @@ interface AuditState {
   // Phase 2C: AI Insights
   aiInsights: AIInsightsState;
 
+  // Audit history (sparkline)
+  auditHistory: AuditHistoryEntry[];
+
   // Core actions
   setAudits: (audits: FeedAudit[]) => void;
   setCurrentAudit: (audit: FeedAudit | null) => void;
@@ -61,6 +70,9 @@ interface AuditState {
   setAIInsightsResult: (result: AIInsightsResult | null) => void;
   setAIInsightsError: (error: string | null) => void;
   resetAIInsights: () => void;
+
+  // Audit history actions
+  fetchAuditHistory: (userId: string) => Promise<void>;
 }
 
 export const useAuditStore = create<AuditState>((set) => ({
@@ -85,6 +97,9 @@ export const useAuditStore = create<AuditState>((set) => ({
 
   // Phase 2C defaults
   aiInsights: { status: 'idle', result: null, error: null },
+
+  // Audit history defaults
+  auditHistory: [],
 
   // Core actions
   setAudits: (audits) => set({ audits }),
@@ -127,4 +142,22 @@ export const useAuditStore = create<AuditState>((set) => ({
     set((state) => ({ aiInsights: { ...state.aiInsights, error, status: 'error' as const } })),
   resetAIInsights: () =>
     set({ aiInsights: { status: 'idle', result: null, error: null } }),
+
+  // Audit history actions
+  fetchAuditHistory: async (userId: string) => {
+    const { data, error } = await supabase
+      .from('feed_audits')
+      .select('feed_score, created_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true })
+      .limit(20);
+
+    if (!error && data) {
+      const history: AuditHistoryEntry[] = data.map((row) => ({
+        score: row.feed_score,
+        date: row.created_at,
+      }));
+      set({ auditHistory: history });
+    }
+  },
 }));

@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -14,12 +15,15 @@ import {
   PrimaryButton,
   StatRow,
   ScoreRing,
+  ScoreHistory,
 } from '../../src/components/ui';
 
 export default function DashboardScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const currentAudit = useAuditStore((s) => s.currentAudit);
+  const auditHistory = useAuditStore((s) => s.auditHistory);
+  const fetchAuditHistory = useAuditStore((s) => s.fetchAuditHistory);
   const streak = useCleanupStore((s) => s.streak);
   const tasksCompletedToday = useCleanupStore((s) => s.tasksCompletedToday);
   const challenges = useCleanupStore((s) => s.challenges);
@@ -27,6 +31,12 @@ export default function DashboardScreen() {
 
   const feedHealth = currentAudit ? getFeedHealthInfo(currentAudit.feed_score) : null;
   const breakdown = currentAudit ? getAuditBreakdown(currentAudit) : null;
+
+  useEffect(() => {
+    if (user?.id) {
+      fetchAuditHistory(user.id);
+    }
+  }, [user?.id, fetchAuditHistory]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -50,6 +60,9 @@ export default function DashboardScreen() {
                 <Text style={styles.scoreDescription}>
                   {feedHealth.label} — {breakdown.suggestivePercent}% suggestive content detected
                 </Text>
+                {auditHistory.length > 0 && (
+                  <ScoreHistory data={auditHistory} />
+                )}
                 <PrimaryButton
                   label="Start Cleanup Session"
                   onPress={() => router.push('/(tabs)/cleanup')}
