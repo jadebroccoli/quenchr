@@ -41,6 +41,9 @@ interface AuditState {
   // Phase 2C: AI Insights
   aiInsights: AIInsightsState;
 
+  // Phase 2D: Haiku scan
+  haikuScanStatus: 'idle' | 'scanning' | 'done' | 'error';
+
   // Audit history (sparkline)
   auditHistory: AuditHistoryEntry[];
 
@@ -70,6 +73,9 @@ interface AuditState {
   setAIInsightsResult: (result: AIInsightsResult | null) => void;
   setAIInsightsError: (error: string | null) => void;
   resetAIInsights: () => void;
+
+  // Phase 2D actions
+  setHaikuScanStatus: (status: 'idle' | 'scanning' | 'done' | 'error') => void;
 
   // Audit history actions
   fetchAuditHistory: (userId: string) => Promise<void>;
@@ -101,6 +107,9 @@ export const useAuditStore = create<AuditState>((set) => ({
   // Phase 2C defaults
   aiInsights: { status: 'idle', result: null, error: null },
 
+  // Phase 2D defaults
+  haikuScanStatus: 'idle',
+
   // Audit history defaults
   auditHistory: [],
 
@@ -128,6 +137,7 @@ export const useAuditStore = create<AuditState>((set) => ({
       recordingDurationSeconds: 0,
       frameExtractionProgress: null,
       aiInsights: { status: 'idle', result: null, error: null },
+      haikuScanStatus: 'idle',
     }),
 
   // Phase 2B actions
@@ -145,6 +155,9 @@ export const useAuditStore = create<AuditState>((set) => ({
     set((state) => ({ aiInsights: { ...state.aiInsights, error, status: 'error' as const } })),
   resetAIInsights: () =>
     set({ aiInsights: { status: 'idle', result: null, error: null } }),
+
+  // Phase 2D actions
+  setHaikuScanStatus: (haikuScanStatus) => set({ haikuScanStatus }),
 
   // Load latest audit from DB so results survive navigation.
   // Also sets screenState to 'results' so the results view shows.

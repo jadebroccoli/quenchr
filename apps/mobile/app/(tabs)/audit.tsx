@@ -5,12 +5,14 @@ import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { PLATFORMS, NSFW_THRESHOLDS, calculateFeedScore } from '@quenchr/shared';
 import type { Platform, FeedAudit, ClassificationResult, AuditImageResult, AIInsightsResult, AIInsightsStatus } from '@quenchr/shared';
-import { createFeedAudit } from '@quenchr/supabase-client';
+import { createFeedAudit, updateFeedAudit } from '@quenchr/supabase-client';
 import { useAuditStore } from '../../src/stores/audit-store';
 import { useAuthStore } from '../../src/stores/auth-store';
 import { useSubscriptionStore } from '../../src/stores/subscription-store';
 import { initializeModel, isModelLoaded, scanImages } from '../../src/services/nsfw-classifier';
 import { selectFlaggedFrames, analyzeWithAI } from '../../src/services/ai-insights';
+import { scanWithHaiku } from '../../src/services/haiku-scan';
+import type { HaikuScanResult } from '../../src/services/haiku-scan';
 import { ScanningProgressView } from '../../src/components/ScanningProgressView';
 import { AuditResultsView } from '../../src/components/AuditResultsView';
 import { LiveScanView } from '../../src/components/LiveScanView';
@@ -39,6 +41,8 @@ async function processClassificationResults(
     setAIInsightsStatus: (status: AIInsightsStatus) => void;
     setAIInsightsResult: (result: AIInsightsResult | null) => void;
     setAIInsightsError: (error: string | null) => void;
+    setHaikuScanStatus: (status: 'idle' | 'scanning' | 'done' | 'error') => void;
+    setCurrentAudit: (audit: FeedAudit | null) => void;
   }
 ) {
   const { setImageResults, addAudit, setScreenState } = callbacks;
@@ -55,6 +59,8 @@ async function processClassificationResults(
 
   setImageResults(imageResults);
 
+  const isPro = useSubscriptionStore.getState().isPro();
+
   let auditId: string | undefined;
   const userId = useAuthStore.getState().user?.id;
   if (userId) {
@@ -66,6 +72,7 @@ async function processClassificationResults(
       sexy_detected: sexyCount,
       neutral_detected: neutralCount,
       feed_score: feedScore,
+      scan_type: 'nsfwjs',
     });
     if (data) {
       addAudit(data as FeedAudit);
@@ -89,18 +96,66 @@ async function processClassificationResults(
 
   setScreenState('results');
 
-  const isPro = useSubscriptionStore.getState().isPro();
+  // Run Haiku AI scan for Pro users — refines the NSFWJS score
   if (isPro) {
-    const flaggedFrames = selectFlaggedFrames(imageResults);
-    if (flaggedFrames.length > 0) {
-      callbacks.setAIInsightsStatus('loading');
-      analyzeWithAI(flaggedFrames, frameUris, selectedPlatform, feedScore, auditId)
-        .then((result) => callbacks.setAIInsightsResult(result))
-        .catch((err) => {
-          console.warn('[audit] AI analysis failed:', err);
-          callbacks.setAIInsightsError(err instanceof Error ? err.message : 'AI analysis failed');
-        });
-    }
+    callbacks.setHaikuScanStatus('scanning');
+
+    scanWithHaiku(frameUris, selectedPlatform)
+      .then(async (haikuResult: HaikuScanResult) => {
+        // Override the feed score with Haiku's more accurate score
+        const haikuScore = haikuResult.overall_score;
+
+        // Update the audit record in Supabase
+        if (auditId && userId) {
+          const { data: updatedAudit } = await updateFeedAudit(auditId, {
+            feed_score: haikuScore,
+            scan_type: 'haiku',
+          });
+          if (updatedAudit) {
+            callbacks.setCurrentAudit(updatedAudit as FeedAudit);
+          }
+        } else {
+          // Local-only: update the current audit directly
+          const currentAudit = useAuditStore.getState().currentAudit;
+          if (currentAudit) {
+            callbacks.setCurrentAudit({
+              ...currentAudit,
+              feed_score: haikuScore,
+              scan_type: 'haiku',
+            } as FeedAudit);
+          }
+        }
+
+        callbacks.setHaikuScanStatus('done');
+
+        // Also run AI insights on flagged frames
+        const flaggedFrames = selectFlaggedFrames(imageResults);
+        if (flaggedFrames.length > 0) {
+          callbacks.setAIInsightsStatus('loading');
+          analyzeWithAI(flaggedFrames, frameUris, selectedPlatform, haikuScore, auditId)
+            .then((result) => callbacks.setAIInsightsResult(result))
+            .catch((err) => {
+              console.warn('[audit] AI analysis failed:', err);
+              callbacks.setAIInsightsError(err instanceof Error ? err.message : 'AI analysis failed');
+            });
+        }
+      })
+      .catch((err) => {
+        console.warn('[audit] Haiku scan failed, falling back to NSFWJS results:', err);
+        callbacks.setHaikuScanStatus('error');
+
+        // Fall back: still run AI insights with NSFWJS score
+        const flaggedFrames = selectFlaggedFrames(imageResults);
+        if (flaggedFrames.length > 0) {
+          callbacks.setAIInsightsStatus('loading');
+          analyzeWithAI(flaggedFrames, frameUris, selectedPlatform, feedScore, auditId)
+            .then((result) => callbacks.setAIInsightsResult(result))
+            .catch((aiErr) => {
+              console.warn('[audit] AI analysis failed:', aiErr);
+              callbacks.setAIInsightsError(aiErr instanceof Error ? aiErr.message : 'AI analysis failed');
+            });
+        }
+      });
   }
 }
 
@@ -113,6 +168,7 @@ export default function AuditScreen() {
     setModelReady, setScanError, addAudit, resetScan,
     auditMode, setAuditMode,
     setAIInsightsStatus, setAIInsightsResult, setAIInsightsError,
+    setHaikuScanStatus, setCurrentAudit,
     currentAudit, fetchLatestAudit,
   } = useAuditStore();
 
@@ -178,6 +234,7 @@ export default function AuditScreen() {
       const { imageResults, allClassifications } = await scanImages(screenshots, (p) => setScanProgress(p));
       await processClassificationResults(imageResults, allClassifications, selectedPlatform, screenshots, {
         setImageResults, addAudit, setScreenState, setAIInsightsStatus, setAIInsightsResult, setAIInsightsError,
+        setHaikuScanStatus, setCurrentAudit,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Scan failed';
@@ -206,6 +263,7 @@ export default function AuditScreen() {
       const { imageResults, allClassifications } = await scanImages(frameUris, (p) => setScanProgress(p));
       await processClassificationResults(imageResults, allClassifications, selectedPlatform, frameUris, {
         setImageResults, addAudit, setScreenState, setAIInsightsStatus, setAIInsightsResult, setAIInsightsError,
+        setHaikuScanStatus, setCurrentAudit,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Scan failed';

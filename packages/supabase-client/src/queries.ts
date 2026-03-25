@@ -38,8 +38,19 @@ export async function createFeedAudit(data: {
   sexy_detected: number;
   neutral_detected: number;
   feed_score: number;
+  scan_type?: 'nsfwjs' | 'haiku';
 }) {
   return supabase.from('feed_audits').insert(data).select().single();
+}
+
+export async function updateFeedAudit(
+  auditId: string,
+  data: {
+    feed_score?: number;
+    scan_type?: 'nsfwjs' | 'haiku';
+  },
+) {
+  return supabase.from('feed_audits').update(data).eq('id', auditId).select().single();
 }
 
 export async function getFeedAudits(userId: string, platform?: Platform, limit = 10) {

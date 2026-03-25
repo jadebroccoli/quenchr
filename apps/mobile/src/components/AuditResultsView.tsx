@@ -21,8 +21,10 @@ interface Props {
 
 export function AuditResultsView({ onNewAudit, onStartCleanup }: Props) {
   const router = useRouter();
-  const { currentAudit, aiInsights, imageResults, setAIInsightsStatus, setAIInsightsResult, setAIInsightsError } = useAuditStore();
+  const { currentAudit, aiInsights, imageResults, haikuScanStatus, setAIInsightsStatus, setAIInsightsResult, setAIInsightsError } = useAuditStore();
   const isPro = useSubscriptionStore((s) => s.isPro());
+
+  const isHaikuEnhanced = (currentAudit as any)?.scan_type === 'haiku' || haikuScanStatus === 'done';
 
   const scoreAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -78,6 +80,18 @@ export function AuditResultsView({ onNewAudit, onStartCleanup }: Props) {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Score counter */}
         <AnimatedScoreText value={displayScore} color={health.color} />
+
+        {/* Haiku scanning indicator */}
+        {haikuScanStatus === 'scanning' && (
+          <Text style={styles.haikuScanningText}>AI is double-checking...</Text>
+        )}
+
+        {/* AI-Enhanced badge */}
+        {isHaikuEnhanced && (
+          <View style={styles.aiEnhancedBadge}>
+            <Text style={styles.aiEnhancedText}>Powered by Claude</Text>
+          </View>
+        )}
 
         {/* Health badge */}
         <Animated.View style={[styles.badgeRow, { opacity: fadeAnim }]}>
@@ -259,6 +273,25 @@ const styles = StyleSheet.create({
     fontSize: 72,
     lineHeight: 72,
     marginTop: 16,
+  },
+  haikuScanningText: {
+    ...typ.bodySmall,
+    color: colors.gold,
+    textAlign: 'center',
+    marginTop: -4,
+  },
+  aiEnhancedBadge: {
+    backgroundColor: colors.gold + '20',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: radius.badge,
+    borderWidth: 1,
+    borderColor: colors.gold + '40',
+  },
+  aiEnhancedText: {
+    ...typ.label,
+    color: colors.gold,
+    fontSize: 11,
   },
   badgeRow: {
     flexDirection: 'row',
