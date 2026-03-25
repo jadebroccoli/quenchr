@@ -118,6 +118,24 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * Force-stop any recording that may be running in the background.
+ * Call this on screen mount to clean up orphaned recordings
+ * (e.g., after a hot reload, navigation away, or crash).
+ * Safe to call even if nothing is recording — it's a no-op.
+ */
+export async function forceStopIfRecording(): Promise<void> {
+  try {
+    await stopGlobalRecording({ settledTimeMs: 500 });
+    console.log('[screen-capture] Force-stopped orphaned recording');
+  } catch {
+    // Not recording — that's fine
+  }
+  _status = 'idle';
+  _recordingStartTime = null;
+  _recordingError = null;
+}
+
+/**
  * Stop recording and return the video file URI.
  *
  * Android's MediaProjection can be slow to finalize the video file.
@@ -125,7 +143,8 @@ function sleep(ms: number): Promise<void> {
  * We retry with `retrieveLastGlobalRecording()` as a fallback.
  */
 export async function stopScreenRecording(): Promise<string> {
-  if (_status !== 'recording') {
+  // Allow stopping even if JS state got out of sync
+  if (_status !== 'recording' && _status !== 'idle') {
     throw new Error('Not currently recording');
   }
 

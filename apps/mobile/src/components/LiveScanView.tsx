@@ -10,6 +10,7 @@ import {
   extractFrames,
   getRecordingDuration,
   cleanupRecording,
+  forceStopIfRecording,
 } from '../services/screen-capture';
 import { colors, type as typ, radius, spacing } from '../tokens';
 
@@ -34,6 +35,14 @@ export function LiveScanView({ platform, onFramesExtracted, onCancel }: Props) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   const pageName = platform === 'instagram' ? 'Explore page' : 'For You Page';
+
+  // On mount: clean up any orphaned recording from a previous session
+  // (e.g., hot reload, navigation away while recording, crash)
+  useEffect(() => {
+    if (liveScanState === 'idle') {
+      forceStopIfRecording();
+    }
+  }, []);
 
   // Pulsing red dot animation during recording
   useEffect(() => {
