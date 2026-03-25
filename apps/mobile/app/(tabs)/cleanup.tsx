@@ -28,8 +28,27 @@ import { useCleanupInit } from '../../src/hooks/useCleanupInit';
 import { SessionProgressBar } from '../../src/components/SessionProgressBar';
 import { CleanupStepView } from '../../src/components/CleanupStepView';
 import { SessionCompleteView } from '../../src/components/SessionCompleteView';
+import { colors, type as typ, spacing, radius } from '../../src/tokens';
+import { PageHeader } from '../../src/components/ui/PageHeader';
+import { PillGroup } from '../../src/components/ui/PillGroup';
+import { AuditBanner } from '../../src/components/ui/AuditBanner';
+import { CardLight } from '../../src/components/ui/CardLight';
+import { CardDark } from '../../src/components/ui/CardDark';
+import { PrimaryButton } from '../../src/components/ui/PrimaryButton';
 
 type ScreenState = 'launcher' | 'session' | 'complete';
+
+const PRIORITY_COLORS: Record<string, string> = {
+  critical: colors.red,
+  high: colors.gold,
+  medium: colors.cream4,
+  maintenance: colors.cream3,
+};
+
+const PLATFORM_OPTIONS: { value: Platform; label: string }[] = [
+  { value: 'instagram', label: 'Instagram' },
+  { value: 'tiktok', label: 'TikTok' },
+];
 
 export default function CleanupScreen() {
   const router = useRouter();
@@ -211,7 +230,7 @@ export default function CleanupScreen() {
   // ── Session view ──
   if (screenState === 'session' && sessionSteps.length > 0) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top']}>
         <SessionProgressBar
           currentStep={currentStepIndex}
           totalSteps={sessionSteps.length}
@@ -233,7 +252,7 @@ export default function CleanupScreen() {
   // ── Complete view ──
   if (screenState === 'complete') {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top']}>
         <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
           <SessionCompleteView
             earnedPoints={earnedPoints}
@@ -252,19 +271,13 @@ export default function CleanupScreen() {
   // ── Not authenticated ──
   if (!user && !loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.centeredState}>
-          <Text style={styles.centeredEmoji}>🔒</Text>
           <Text style={styles.centeredTitle}>Sign in to start cleaning</Text>
           <Text style={styles.centeredSubtitle}>
             Create an account to get personalized cleanup plans and track your progress
           </Text>
-          <TouchableOpacity
-            style={styles.centeredButton}
-            onPress={() => router.push('/(auth)/login')}
-          >
-            <Text style={styles.centeredButtonText}>Sign In</Text>
-          </TouchableOpacity>
+          <PrimaryButton label="Sign In" onPress={() => router.push('/(auth)/login')} />
         </View>
       </SafeAreaView>
     );
@@ -273,9 +286,9 @@ export default function CleanupScreen() {
   // ── Loading state ──
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.centeredState}>
-          <ActivityIndicator size="large" color="#6366F1" />
+          <ActivityIndicator size="large" color={colors.brown} />
           <Text style={styles.centeredSubtitle}>Loading cleanup tasks...</Text>
         </View>
       </SafeAreaView>
@@ -285,16 +298,13 @@ export default function CleanupScreen() {
   // ── Error state ──
   if (error) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.centeredState}>
-          <Text style={styles.centeredEmoji}>⚠️</Text>
-          <Text style={[styles.centeredTitle, { color: '#EF4444' }]}>
+          <Text style={[styles.centeredTitle, { color: colors.red }]}>
             Something went wrong
           </Text>
           <Text style={styles.centeredSubtitle}>{error}</Text>
-          <TouchableOpacity style={styles.centeredButton} onPress={refetch}>
-            <Text style={styles.centeredButtonText}>Try Again</Text>
-          </TouchableOpacity>
+          <PrimaryButton label="Try Again" onPress={refetch} />
         </View>
       </SafeAreaView>
     );
@@ -305,145 +315,136 @@ export default function CleanupScreen() {
   const breakdown = currentAudit ? getAuditBreakdown(currentAudit) : null;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.title}>Cleanup Session</Text>
-        <Text style={styles.subtitle}>
-          {tasksCompletedToday}/{limits.tasksPerDay === Infinity ? '∞' : limits.tasksPerDay} tasks today
-        </Text>
+        <PageHeader
+          eyebrow="Remediation"
+          title="Cleanup Session."
+          subtitle={`${tasksCompletedToday} of ${limits.tasksPerDay === Infinity ? '...' : limits.tasksPerDay} tasks done today. Let's fix that.`}
+        />
 
-        {/* Platform tabs */}
-        <View style={styles.tabRow}>
-          {(['instagram', 'tiktok'] as Platform[]).map((p) => (
-            <TouchableOpacity
-              key={p}
-              style={[styles.tab, selectedPlatform === p && styles.tabActive]}
-              onPress={() => setSelectedPlatform(p)}
-            >
-              <Text style={styles.tabEmoji}>
-                {p === 'instagram' ? '📸' : '🎵'}
-              </Text>
-              <Text style={[styles.tabText, selectedPlatform === p && styles.tabTextActive]}>
-                {PLATFORMS[p].label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+        {/* Platform pills */}
+        <View style={styles.section}>
+          <PillGroup
+            options={PLATFORM_OPTIONS}
+            selected={selectedPlatform}
+            onSelect={setSelectedPlatform}
+          />
         </View>
 
         {/* Audit result banner (if exists for this platform) */}
         {currentAudit && currentAudit.platform === selectedPlatform && feedHealth && breakdown && (
-          <View style={styles.auditBanner}>
-            <View style={styles.auditBannerTop}>
-              <View>
-                <Text style={styles.auditBannerLabel}>Your Feed Score</Text>
-                <Text style={[styles.auditBannerScore, { color: feedHealth.color }]}>
-                  {feedHealth.score}
-                </Text>
+          <View style={styles.section}>
+            <CardLight>
+              <View style={styles.auditBannerTop}>
+                <View>
+                  <Text style={styles.auditLabel}>YOUR FEED SCORE</Text>
+                  <Text style={[styles.auditScore, { color: feedHealth.color }]}>
+                    {feedHealth.score}
+                  </Text>
+                </View>
+                <View style={[styles.healthBadge, { backgroundColor: feedHealth.color + '20' }]}>
+                  <Text style={[styles.healthBadgeText, { color: feedHealth.color }]}>
+                    {feedHealth.label}
+                  </Text>
+                </View>
               </View>
-              <View style={[styles.healthBadge, { backgroundColor: feedHealth.color + '20' }]}>
-                <Text style={[styles.healthBadgeText, { color: feedHealth.color }]}>
-                  {feedHealth.label}
-                </Text>
-              </View>
-            </View>
-            <Text style={styles.auditBannerDetail}>
-              {breakdown.suggestivePercent}% suggestive content detected
-            </Text>
+              <Text style={styles.auditDetail}>
+                {breakdown.suggestivePercent}% suggestive content detected
+              </Text>
+            </CardLight>
           </View>
         )}
 
         {/* No audit CTA */}
         {(!currentAudit || currentAudit.platform !== selectedPlatform) && (
-          <TouchableOpacity
-            style={styles.noAuditCard}
-            onPress={() => router.push('/(tabs)/audit')}
-          >
-            <Text style={styles.noAuditEmoji}>🔍</Text>
-            <View style={styles.noAuditContent}>
-              <Text style={styles.noAuditTitle}>Run an Audit First</Text>
-              <Text style={styles.noAuditSubtitle}>
-                Get a personalized cleanup plan based on your actual feed
-              </Text>
-            </View>
-            <Text style={styles.noAuditArrow}>→</Text>
-          </TouchableOpacity>
+          <View style={styles.section}>
+            <AuditBanner
+              title="Run an Audit First"
+              subtitle="Get a personalized cleanup plan based on your actual feed"
+              onPress={() => router.push('/(tabs)/audit')}
+            />
+          </View>
         )}
 
-        {/* Session preview card */}
-        <View style={styles.sessionPreview}>
-          <Text style={styles.sessionPreviewTitle}>Your Cleanup Plan</Text>
-          <Text style={styles.sessionPreviewSubtitle}>
-            {sessionSummary.totalSteps} steps · ~{sessionSummary.totalMinutes} min · {sessionSummary.totalPoints} pts
-          </Text>
+        {/* Session preview card — cleanup plan */}
+        <View style={styles.section}>
+          <CardLight>
+            <Text style={styles.planTitle}>Your Cleanup Plan</Text>
+            <Text style={styles.planSubtitle}>
+              {sessionSummary.totalSteps} steps · ~{sessionSummary.totalMinutes} min · {sessionSummary.totalPoints} pts
+            </Text>
 
-          {/* Priority breakdown */}
-          <View style={styles.priorityList}>
-            {sessionSummary.stepsByPriority.critical && (
-              <View style={styles.priorityRow}>
-                <View style={[styles.priorityDot, { backgroundColor: '#EF4444' }]} />
-                <Text style={styles.priorityLabel}>
-                  {sessionSummary.stepsByPriority.critical} Settings Change{sessionSummary.stepsByPriority.critical > 1 ? 's' : ''}
-                </Text>
-                <Text style={styles.priorityTag}>Critical</Text>
-              </View>
-            )}
-            {sessionSummary.stepsByPriority.high && (
-              <View style={styles.priorityRow}>
-                <View style={[styles.priorityDot, { backgroundColor: '#F97316' }]} />
-                <Text style={styles.priorityLabel}>
-                  {sessionSummary.stepsByPriority.high} Algorithm Training Task{sessionSummary.stepsByPriority.high > 1 ? 's' : ''}
-                </Text>
-                <Text style={styles.priorityTag}>High</Text>
-              </View>
-            )}
-            {sessionSummary.stepsByPriority.medium && (
-              <View style={styles.priorityRow}>
-                <View style={[styles.priorityDot, { backgroundColor: '#EAB308' }]} />
-                <Text style={styles.priorityLabel}>
-                  {sessionSummary.stepsByPriority.medium} Unfollow/Review Task{sessionSummary.stepsByPriority.medium > 1 ? 's' : ''}
-                </Text>
-                <Text style={styles.priorityTag}>Medium</Text>
-              </View>
-            )}
-            {sessionSummary.stepsByPriority.maintenance && (
-              <View style={styles.priorityRow}>
-                <View style={[styles.priorityDot, { backgroundColor: '#94A3B8' }]} />
-                <Text style={styles.priorityLabel}>
-                  {sessionSummary.stepsByPriority.maintenance} Maintenance Task{sessionSummary.stepsByPriority.maintenance > 1 ? 's' : ''}
-                </Text>
-                <Text style={styles.priorityTag}>Low</Text>
-              </View>
-            )}
-          </View>
+            <View style={styles.priorityList}>
+              {sessionSummary.stepsByPriority.critical > 0 && (
+                <View style={styles.priorityRow}>
+                  <View style={[styles.priorityDot, { backgroundColor: PRIORITY_COLORS.critical }]} />
+                  <Text style={styles.priorityLabel}>
+                    {sessionSummary.stepsByPriority.critical} Settings Change{sessionSummary.stepsByPriority.critical > 1 ? 's' : ''}
+                  </Text>
+                  <Text style={styles.priorityTag}>Critical</Text>
+                </View>
+              )}
+              {sessionSummary.stepsByPriority.high > 0 && (
+                <View style={styles.priorityRow}>
+                  <View style={[styles.priorityDot, { backgroundColor: PRIORITY_COLORS.high }]} />
+                  <Text style={styles.priorityLabel}>
+                    {sessionSummary.stepsByPriority.high} Algorithm Training Task{sessionSummary.stepsByPriority.high > 1 ? 's' : ''}
+                  </Text>
+                  <Text style={styles.priorityTag}>High</Text>
+                </View>
+              )}
+              {sessionSummary.stepsByPriority.medium > 0 && (
+                <View style={styles.priorityRow}>
+                  <View style={[styles.priorityDot, { backgroundColor: PRIORITY_COLORS.medium }]} />
+                  <Text style={styles.priorityLabel}>
+                    {sessionSummary.stepsByPriority.medium} Unfollow/Review Task{sessionSummary.stepsByPriority.medium > 1 ? 's' : ''}
+                  </Text>
+                  <Text style={styles.priorityTag}>Medium</Text>
+                </View>
+              )}
+              {sessionSummary.stepsByPriority.maintenance > 0 && (
+                <View style={styles.priorityRow}>
+                  <View style={[styles.priorityDot, { backgroundColor: PRIORITY_COLORS.maintenance }]} />
+                  <Text style={styles.priorityLabel}>
+                    {sessionSummary.stepsByPriority.maintenance} Maintenance Task{sessionSummary.stepsByPriority.maintenance > 1 ? 's' : ''}
+                  </Text>
+                  <Text style={styles.priorityTag}>Low</Text>
+                </View>
+              )}
+            </View>
+          </CardLight>
         </View>
 
         {/* Start button */}
-        <TouchableOpacity style={styles.startButton} onPress={startSession}>
-          <Text style={styles.startButtonText}>Start Cleanup Session</Text>
-          <Text style={styles.startButtonSub}>
-            ~{sessionSummary.totalMinutes} min · {sessionSummary.totalPoints} points
+        <View style={styles.section}>
+          <PrimaryButton label="Start Cleanup Session" onPress={startSession} />
+          <Text style={styles.metaCaption}>
+            ~{sessionSummary.totalMinutes} MINUTES · {sessionSummary.totalPoints} POINTS
           </Text>
-        </TouchableOpacity>
+        </View>
 
-        {/* Tips section */}
-        <View style={styles.tipsCard}>
-          <Text style={styles.tipsTitle}>How it works</Text>
-          <View style={styles.tipRow}>
-            <Text style={styles.tipNumber}>1</Text>
-            <Text style={styles.tipText}>We show you one task at a time, starting with the highest impact</Text>
-          </View>
-          <View style={styles.tipRow}>
-            <Text style={styles.tipNumber}>2</Text>
-            <Text style={styles.tipText}>Tap "Open App" to jump directly to the right screen</Text>
-          </View>
-          <View style={styles.tipRow}>
-            <Text style={styles.tipNumber}>3</Text>
-            <Text style={styles.tipText}>Complete the task, come back, and mark it done</Text>
-          </View>
-          <View style={styles.tipRow}>
-            <Text style={styles.tipNumber}>4</Text>
-            <Text style={styles.tipText}>Re-scan your feed in a few days to see improvement</Text>
-          </View>
+        {/* How it works card */}
+        <View style={styles.section}>
+          <CardDark>
+            <Text style={styles.howTitle}>How it works</Text>
+            <View style={styles.tipRow}>
+              <Text style={styles.tipNumber}>1</Text>
+              <Text style={styles.tipText}>We show you one task at a time, starting with the highest impact</Text>
+            </View>
+            <View style={styles.tipRow}>
+              <Text style={styles.tipNumber}>2</Text>
+              <Text style={styles.tipText}>Tap "Open App" to jump directly to the right screen</Text>
+            </View>
+            <View style={styles.tipRow}>
+              <Text style={styles.tipNumber}>3</Text>
+              <Text style={styles.tipText}>Complete the task, come back, and mark it done</Text>
+            </View>
+            <View style={styles.tipRow}>
+              <Text style={styles.tipNumber}>4</Text>
+              <Text style={styles.tipText}>Re-scan your feed in a few days to see improvement</Text>
+            </View>
+          </CardDark>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -453,21 +454,14 @@ export default function CleanupScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: colors.cream,
   },
   content: {
-    padding: 24,
-    gap: 16,
-    paddingBottom: 40,
+    paddingBottom: 100,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#F8FAFC',
-  },
-  subtitle: {
-    fontSize: 15,
-    color: '#94A3B8',
+  section: {
+    paddingHorizontal: spacing.pagePad,
+    marginBottom: spacing.sectionGap,
   },
 
   // Centered states (loading, error, no-auth)
@@ -475,162 +469,62 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    padding: spacing.pagePad,
     gap: 12,
   },
-  centeredEmoji: {
-    fontSize: 48,
-    marginBottom: 8,
-  },
   centeredTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#F8FAFC',
+    ...typ.h3,
+    color: colors.ink,
     textAlign: 'center',
   },
   centeredSubtitle: {
-    fontSize: 15,
-    color: '#94A3B8',
+    ...typ.body,
+    color: colors.ink2,
     textAlign: 'center',
-    lineHeight: 22,
     marginTop: 4,
   },
-  centeredButton: {
-    backgroundColor: '#6366F1',
-    borderRadius: 12,
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    marginTop: 8,
-  },
-  centeredButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-  },
 
-  // Platform tabs
-  tabRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  tab: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    borderRadius: 10,
-    backgroundColor: '#1E293B',
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  tabActive: {
-    borderColor: '#6366F1',
-    backgroundColor: '#1E1B4B',
-  },
-  tabEmoji: {
-    fontSize: 18,
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#94A3B8',
-  },
-  tabTextActive: {
-    color: '#F8FAFC',
-  },
-
-  // Audit banner
-  auditBanner: {
-    backgroundColor: '#1E293B',
-    borderRadius: 12,
-    padding: 16,
-    gap: 8,
-  },
+  // Audit banner inside CardLight
   auditBannerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  auditBannerLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#64748B',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+  auditLabel: {
+    ...typ.label,
+    color: colors.ink3,
+    marginBottom: 4,
   },
-  auditBannerScore: {
-    fontSize: 36,
-    fontWeight: '800',
+  auditScore: {
+    ...typ.bigNum,
   },
   healthBadge: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 20,
+    borderRadius: radius.pill,
   },
   healthBadgeText: {
-    fontSize: 13,
-    fontWeight: '700',
+    ...typ.caption,
   },
-  auditBannerDetail: {
-    fontSize: 13,
-    color: '#94A3B8',
+  auditDetail: {
+    ...typ.body,
+    color: colors.ink2,
+    marginTop: 8,
   },
 
-  // No audit CTA
-  noAuditCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: '#1E293B',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#334155',
-    borderStyle: 'dashed',
+  // Cleanup plan card content
+  planTitle: {
+    ...typ.h3,
+    color: colors.ink,
   },
-  noAuditEmoji: {
-    fontSize: 28,
-  },
-  noAuditContent: {
-    flex: 1,
-  },
-  noAuditTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#F8FAFC',
-  },
-  noAuditSubtitle: {
-    fontSize: 13,
-    color: '#94A3B8',
+  planSubtitle: {
+    ...typ.body,
+    color: colors.ink2,
     marginTop: 2,
   },
-  noAuditArrow: {
-    fontSize: 20,
-    color: '#6366F1',
-    fontWeight: '700',
-  },
-
-  // Session preview
-  sessionPreview: {
-    backgroundColor: '#1E293B',
-    borderRadius: 16,
-    padding: 20,
-    gap: 12,
-  },
-  sessionPreviewTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#F8FAFC',
-  },
-  sessionPreviewSubtitle: {
-    fontSize: 14,
-    color: '#94A3B8',
-  },
   priorityList: {
-    gap: 10,
-    marginTop: 4,
+    gap: spacing.cardGap,
+    marginTop: 14,
   },
   priorityRow: {
     flexDirection: 'row',
@@ -643,69 +537,50 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   priorityLabel: {
+    ...typ.body,
+    color: colors.ink,
     flex: 1,
-    fontSize: 14,
-    color: '#CBD5E1',
   },
   priorityTag: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#64748B',
+    ...typ.label,
+    color: colors.ink3,
+  },
+
+  // Meta caption below button
+  metaCaption: {
+    ...typ.caption,
+    color: colors.ink3,
+    textAlign: 'center',
+    marginTop: 8,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
 
-  // Start button
-  startButton: {
-    backgroundColor: '#6366F1',
-    borderRadius: 14,
-    padding: 18,
-    alignItems: 'center',
-  },
-  startButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  startButtonSub: {
-    color: '#C7D2FE',
-    fontSize: 13,
-    marginTop: 4,
-  },
-
-  // Tips
-  tipsCard: {
-    backgroundColor: '#1E293B',
-    borderRadius: 16,
-    padding: 20,
-    gap: 14,
-  },
-  tipsTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#F8FAFC',
+  // How it works card (dark)
+  howTitle: {
+    ...typ.h3,
+    color: colors.lt,
+    marginBottom: 14,
   },
   tipRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
+    marginBottom: 10,
   },
   tipNumber: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#334155',
+    backgroundColor: colors.char4,
     textAlign: 'center',
     lineHeight: 24,
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#F8FAFC',
+    ...typ.caption,
+    color: colors.lt,
     overflow: 'hidden',
   },
   tipText: {
+    ...typ.body,
+    color: colors.lt3,
     flex: 1,
-    fontSize: 14,
-    color: '#94A3B8',
-    lineHeight: 20,
   },
 });

@@ -8,6 +8,12 @@ import { useAuthStore } from '../../src/stores/auth-store';
 import { useCleanupStore } from '../../src/stores/cleanup-store';
 import { useSubscriptionStore } from '../../src/stores/subscription-store';
 import { useChallengesInit } from '../../src/hooks/useChallengesInit';
+import { colors, type as typ, spacing, radius } from '../../src/tokens';
+import { PageHeader } from '../../src/components/ui/PageHeader';
+import { CardDark } from '../../src/components/ui/CardDark';
+import { SecondaryButton } from '../../src/components/ui/SecondaryButton';
+import { PrimaryButton } from '../../src/components/ui/PrimaryButton';
+import { ProgressBar } from '../../src/components/ui/ProgressBar';
 
 type ChallengeWithTemplate = UserChallenge & { challenge: Challenge };
 
@@ -75,19 +81,13 @@ export default function ChallengesScreen() {
   // ── Not authenticated ──
   if (!user && !loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.centeredState}>
-          <Text style={styles.centeredEmoji}>🔒</Text>
           <Text style={styles.centeredTitle}>Sign in to see challenges</Text>
           <Text style={styles.centeredSubtitle}>
             Complete daily challenges to earn bonus points and build your streak
           </Text>
-          <TouchableOpacity
-            style={styles.centeredButton}
-            onPress={() => router.push('/(auth)/login')}
-          >
-            <Text style={styles.centeredButtonText}>Sign In</Text>
-          </TouchableOpacity>
+          <PrimaryButton label="Sign In" onPress={() => router.push('/(auth)/login')} />
         </View>
       </SafeAreaView>
     );
@@ -96,9 +96,9 @@ export default function ChallengesScreen() {
   // ── Loading state ──
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.centeredState}>
-          <ActivityIndicator size="large" color="#6366F1" />
+          <ActivityIndicator size="large" color={colors.brown} />
           <Text style={styles.centeredSubtitle}>Loading challenges...</Text>
         </View>
       </SafeAreaView>
@@ -108,36 +108,35 @@ export default function ChallengesScreen() {
   // ── Error state ──
   if (error) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.centeredState}>
-          <Text style={styles.centeredEmoji}>⚠️</Text>
-          <Text style={[styles.centeredTitle, { color: '#EF4444' }]}>
+          <Text style={[styles.centeredTitle, { color: colors.red }]}>
             Something went wrong
           </Text>
           <Text style={styles.centeredSubtitle}>{error}</Text>
-          <TouchableOpacity style={styles.centeredButton} onPress={refetch}>
-            <Text style={styles.centeredButtonText}>Try Again</Text>
-          </TouchableOpacity>
+          <PrimaryButton label="Try Again" onPress={refetch} />
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.title}>Daily Challenges</Text>
-        <Text style={styles.subtitle}>
-          {completedCount}/{challenges.length} completed today
-        </Text>
+        <PageHeader
+          eyebrow="Daily"
+          title="Challenges."
+          subtitle={`${completedCount} of ${challenges.length} completed. Not great, not terrible.`}
+        />
 
         {/* All done banner */}
         {allDone && (
-          <View style={styles.allDoneBanner}>
-            <Text style={styles.allDoneEmoji}>🎉</Text>
-            <Text style={styles.allDoneText}>
-              All challenges complete! Come back tomorrow for new ones.
-            </Text>
+          <View style={styles.section}>
+            <CardDark>
+              <Text style={styles.allDoneText}>
+                All challenges complete! Come back tomorrow for new ones.
+              </Text>
+            </CardDark>
           </View>
         )}
 
@@ -146,14 +145,15 @@ export default function ChallengesScreen() {
           if (!challenge) return null;
 
           const isComplete = uc.completed;
-          const progressPct = (uc.progress / challenge.target_count) * 100;
+          const progressPct = uc.progress / challenge.target_count;
 
           return (
-            <View key={uc.id} style={[styles.card, isComplete && styles.cardComplete]}>
-              <View style={styles.cardHeader}>
+            <View key={uc.id} style={styles.section}>
+              <CardDark style={isComplete ? styles.cardComplete : undefined}>
+                {/* Title row */}
                 <View style={styles.cardTitleRow}>
                   <Text style={styles.challengeTitle}>
-                    {isComplete ? '✓ ' : ''}{challenge.title}
+                    {isComplete ? '\u2713 ' : ''}{challenge.title}
                   </Text>
                   {challenge.is_premium && (
                     <View style={styles.proBadge}>
@@ -161,57 +161,47 @@ export default function ChallengesScreen() {
                     </View>
                   )}
                 </View>
+
+                {/* Platform tag */}
                 {challenge.platform && (
                   <Text style={styles.platformTag}>
                     {PLATFORMS[challenge.platform as keyof typeof PLATFORMS]?.label}
                   </Text>
                 )}
-              </View>
 
-              <Text style={styles.challengeDesc}>{challenge.description}</Text>
-
-              {/* Progress bar */}
-              <View style={styles.progressContainer}>
-                <View style={styles.progressBar}>
-                  <View
-                    style={[
-                      styles.progressFill,
-                      { width: `${progressPct}%` },
-                      isComplete && { backgroundColor: '#22C55E' },
-                    ]}
-                  />
+                {/* Points badge */}
+                <View style={styles.pointsBadge}>
+                  <Text style={styles.pointsText}>+{challenge.points} pts</Text>
                 </View>
-                <Text style={styles.progressText}>
+
+                {/* Body copy */}
+                <Text style={styles.challengeDesc}>{challenge.description}</Text>
+
+                {/* Progress bar */}
+                <ProgressBar progress={progressPct} variant="dark" style={{ marginTop: 4 }} />
+                <Text style={styles.progressCount}>
                   {uc.progress}/{challenge.target_count}
                 </Text>
-              </View>
 
-              {!isComplete && (
-                <TouchableOpacity
-                  style={styles.progressButton}
-                  onPress={() => handleProgress(uc as ChallengeWithTemplate)}
-                >
-                  <Text style={styles.progressButtonText}>I did this! (+1)</Text>
-                </TouchableOpacity>
-              )}
-
-              <View style={styles.rewardRow}>
-                <Text style={[styles.rewardText, isComplete && { color: '#22C55E' }]}>
-                  {isComplete ? 'Earned' : 'Reward'}: +{challenge.points} pts
-                </Text>
-              </View>
+                {/* CTA button */}
+                {!isComplete && (
+                  <SecondaryButton
+                    label="I did this! (+1)"
+                    onPress={() => handleProgress(uc as ChallengeWithTemplate)}
+                    style={{ marginTop: 4 }}
+                  />
+                )}
+              </CardDark>
             </View>
           );
         })}
 
         {/* Empty state if no challenges */}
         {challenges.length === 0 && (
-          <View style={styles.centeredState}>
-            <Text style={styles.centeredEmoji}>🏆</Text>
-            <Text style={styles.centeredTitle}>No challenges available</Text>
-            <Text style={styles.centeredSubtitle}>
-              Check back later for new daily challenges
-            </Text>
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>More to unlock.</Text>
+            <Text style={styles.emptyBody}>Improve your score to reveal new challenges.</Text>
+            <Text style={styles.emptyBody}>Or just keep being a mystery.</Text>
           </View>
         )}
       </ScrollView>
@@ -222,21 +212,14 @@ export default function ChallengesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: colors.cream,
   },
   content: {
-    padding: 24,
-    gap: 16,
-    paddingBottom: 40,
+    paddingBottom: 100,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#F8FAFC',
-  },
-  subtitle: {
-    fontSize: 15,
-    color: '#94A3B8',
+  section: {
+    paddingHorizontal: spacing.pagePad,
+    marginBottom: spacing.sectionGap,
   },
 
   // Centered states
@@ -244,72 +227,32 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    padding: spacing.pagePad,
     gap: 12,
   },
-  centeredEmoji: {
-    fontSize: 48,
-    marginBottom: 8,
-  },
   centeredTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#F8FAFC',
+    ...typ.h3,
+    color: colors.ink,
     textAlign: 'center',
   },
   centeredSubtitle: {
-    fontSize: 15,
-    color: '#94A3B8',
+    ...typ.body,
+    color: colors.ink2,
     textAlign: 'center',
-    lineHeight: 22,
     marginTop: 4,
-  },
-  centeredButton: {
-    backgroundColor: '#6366F1',
-    borderRadius: 12,
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    marginTop: 8,
-  },
-  centeredButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
   },
 
   // All done banner
-  allDoneBanner: {
-    backgroundColor: '#14532D',
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  allDoneEmoji: {
-    fontSize: 28,
-  },
   allDoneText: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#86EFAC',
-    lineHeight: 20,
+    ...typ.body,
+    color: colors.lt2,
+    textAlign: 'center',
   },
 
   // Challenge cards
-  card: {
-    backgroundColor: '#1E293B',
-    borderRadius: 16,
-    padding: 16,
-    gap: 12,
-  },
   cardComplete: {
     borderWidth: 1,
-    borderColor: '#22C55E',
-  },
-  cardHeader: {
-    gap: 4,
+    borderColor: colors.gold,
   },
   cardTitleRow: {
     flexDirection: 'row',
@@ -317,72 +260,63 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   challengeTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#F8FAFC',
+    ...typ.h3,
+    color: colors.lt,
     flex: 1,
   },
   proBadge: {
-    backgroundColor: '#6366F1',
+    backgroundColor: colors.gold,
     borderRadius: 4,
     paddingHorizontal: 6,
     paddingVertical: 2,
   },
   proText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    ...typ.label,
+    color: colors.char,
   },
   platformTag: {
-    fontSize: 12,
-    color: '#64748B',
+    ...typ.label,
+    color: colors.lt4,
+    marginTop: 4,
+  },
+  pointsBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.gold + '20',
+    borderRadius: radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginTop: 8,
+  },
+  pointsText: {
+    ...typ.caption,
+    color: colors.gold,
   },
   challengeDesc: {
-    fontSize: 14,
-    color: '#94A3B8',
-    lineHeight: 20,
+    ...typ.body,
+    color: colors.lt3,
+    marginTop: 8,
   },
-  progressContainer: {
-    flexDirection: 'row',
+  progressCount: {
+    ...typ.caption,
+    color: colors.lt4,
+    marginTop: 6,
+  },
+
+  // Empty state
+  emptyState: {
     alignItems: 'center',
-    gap: 12,
+    paddingTop: 40,
+    paddingHorizontal: spacing.pagePad,
+    gap: 4,
   },
-  progressBar: {
-    flex: 1,
-    height: 8,
-    backgroundColor: '#0F172A',
-    borderRadius: 4,
-    overflow: 'hidden',
+  emptyTitle: {
+    ...typ.h3,
+    color: colors.ink,
+    marginBottom: 8,
   },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#6366F1',
-    borderRadius: 4,
-  },
-  progressText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#94A3B8',
-    minWidth: 30,
-  },
-  progressButton: {
-    backgroundColor: '#334155',
-    borderRadius: 8,
-    padding: 10,
-    alignItems: 'center',
-  },
-  progressButtonText: {
-    color: '#F8FAFC',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  rewardRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-  },
-  rewardText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#6366F1',
+  emptyBody: {
+    ...typ.body,
+    color: colors.ink3,
+    textAlign: 'center',
   },
 });

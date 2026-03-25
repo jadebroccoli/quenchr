@@ -1,0 +1,7 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="100" cy="100" r="96" fill="#3D2810"/>
+  <text x="100" y="138" text-anchor="middle" font-family="DM Serif Display,Georgia,serif" font-size="112" fill="#F4EEE2">Q</text>
+  <ellipse cx="97" cy="62" rx="31" ry="9" fill="#3D2810" stroke="#3D2810" stroke-width="8"/>
+  <path d="M66 62 A31 9 0 0 1 128 62" fill="none" stroke="#C4922A" stroke-width="7" stroke-linecap="round" transform="rotate(-10 97 62)"/>
+  <path d="M66 62 A31 9 0 0 0 128 62" fill="none" stroke="#C4922A" stroke-width="7" stroke-linecap="round" stroke-opacity=".35" transform="rotate(-10 97 62)"/>
+</svg>

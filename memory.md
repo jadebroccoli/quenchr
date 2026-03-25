@@ -95,7 +95,62 @@ quenchr/
 
 All tables have RLS policies. Auto-creates user profile + streak row on auth signup via trigger.
 
-## Current Status — Phase 4 COMPLETE ✅
+## Current Status — Live Scan + Model Fixes Applied, Needs Device Retest 🔧
+
+### EAS Build + Device Testing ✅
+- App successfully building and running on physical Android device via EAS Dev Client
+- **7 EAS build attempts** to get it working — key fixes:
+  - Git repo must be at monorepo root (not just `apps/mobile/`)
+  - `.npmrc` with `node-linker=hoisted` required for pnpm on EAS
+  - `metro.config.js` with `watchFolders` + `nodeModulesPaths` for monorepo
+  - `babel.config.js` with `react-native-reanimated/plugin`
+  - All deps updated to SDK 55 compatible versions (13 packages)
+  - `expo-camera@~55.0.9` added to override transitive dep from tfjs-react-native
+- **Runtime fixes applied:**
+  - `database.types.ts` converted from UTF-16 → UTF-8 (Supabase CLI on Windows outputs UTF-16)
+  - AsyncStorage added to Supabase client for RN auth persistence (no `localStorage` in RN)
+  - Auto media library permission request on Feed Audit screen mount
+  - `expo-image-picker` plugin added to `app.json` for Android photo permissions
+
+### Live Scan — RESTORED with react-native-nitro-screen-recorder v0.6.3
+- v0.6.2+ explicitly updated to RN 0.83.1 + Expo SDK 55 (the old version was pre-0.6.2, targeting RN 0.81.x)
+- `screen-capture.ts` rewritten with real `startGlobalRecording`/`stopGlobalRecording` + `expo-video-thumbnails` frame extraction
+- Live Scan toggle re-enabled in `audit.tsx`, LiveScanView import restored
+- Stale type declaration file `src/types/react-native-nitro-screen-recorder.d.ts` deleted (was overriding real types)
+- Expo config plugin added to `app.json` (camera/mic permissions disabled — not needed for screen recording)
+- **EAS build SUCCEEDED** — APK ready: `https://expo.dev/artifacts/eas/udmAMuLDu3UZ4wgrztUzmo.apk`
+- Build URL: https://expo.dev/accounts/jadebroccoli/projects/quenchr/builds/e47980b4-8fee-431f-b683-033ca12f3a72
+
+### Device Testing Results (2026-03-24)
+Two bugs found during device testing, both fixed (JS-only, no new EAS build needed):
+
+**Bug 1: NSFWJS model 404** — `https://nsfwjs.com/quant_nsfw_mobilenet/model.json` is DEAD (nsfwjs.com took the CDN down due to hotlinkers). Both Screenshot and Live Scan modes fail because the model can't load.
+- **Fix:** Changed from remote URL to bundled model loading: `nsfwjs.load('MobileNetV2', { size: 224 })` — the model ships inside the `nsfwjs` npm package as `.min.js` files with base64-encoded weights. Zero network dependency now.
+- File: `apps/mobile/src/services/nsfw-classifier.ts` line 33+55
+
+**Bug 2: Live Scan frame extraction hangs** — Recording works (MediaProjection permission dialog appears, recording starts/stops successfully), but "Extracting frames..." state hangs forever.
+- **Root cause:** `react-native-nitro-screen-recorder` returns absolute paths (e.g. `/data/data/.../recording.mp4`) but `expo-video-thumbnails` needs `file://` URIs. The `getThumbnailAsync` call hangs silently instead of erroring.
+- **Fix:** Added `ensureFileUri()` helper to normalize paths to `file://` URIs. Also added 10s per-frame timeout via `withTimeout()` so extraction can't hang forever. Increased `settledTimeMs` from 500→1000ms for more reliable video finalization. Added console logging throughout.
+- File: `apps/mobile/src/services/screen-capture.ts`
+
+**Status:** Fixes committed & pushed (commit `700e01d`). Needs device retest — just reload JS bundle via dev client (shake → Reload), no new APK install needed.
+
+### EAS / GitHub Config
+- **GitHub repo:** `jadebroccoli/quenchr` (PAT: `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`)
+- **EAS project ID:** `edddd098-860c-4bae-8b59-56363582d446`
+- **Supabase project URL:** `https://eppabyjffqxvkammskuq.supabase.co`
+- **Latest APK:** `https://expo.dev/artifacts/eas/udmAMuLDu3UZ4wgrztUzmo.apk` (build e47980b4, includes Live Scan)
+- **EAS build profiles:** development (APK), development-device, preview, production
+- Each profile needs `"node": "22.12.0"` and `"pnpm": "9.15.0"`
+
+### Build Checklist (for next EAS build)
+1. `git add` + `git commit` + `git push` all changes
+2. `cd apps/mobile && npx eas-cli build --platform android --profile development --non-interactive`
+3. Download APK → install on device → `npx expo start --dev-client`
+
+---
+
+## Completed Phases
 
 ### Phase 1 — Foundation ✅
 - [x] Turborepo monorepo with pnpm workspaces (4 packages linked)
@@ -121,17 +176,17 @@ All tables have RLS policies. Auto-creates user profile + streak row on auth sig
 - [x] 3-state audit screen flow (input → scanning → results)
 - [x] Supabase persistence for audit results
 
-### Phase 2B — Expo Dev Client + Live Screen Recording ✅
+### Phase 2B — Expo Dev Client + Live Screen Recording ✅ (pending device test)
 - [x] Switched from Expo Go to Expo Dev Client (`expo-dev-client`)
 - [x] `eas.json` with development, preview, production build profiles
-- [x] `react-native-nitro-screen-recorder` integration (MediaProjection + ReplayKit)
-- [x] `screen-capture.ts` service: recording control, frame extraction via `expo-video-thumbnails`
+- [x] `react-native-nitro-screen-recorder@0.6.3` + `react-native-nitro-modules@0.33.8` — global screen recording (MediaProjection + ReplayKit)
+- [x] `screen-capture.ts` service: `startGlobalRecording`/`stopGlobalRecording` + frame extraction via `expo-video-thumbnails`
 - [x] `LiveScanView.tsx` component: idle → recording (pulsing dot + timer) → extracting states
-- [x] Mode toggle on audit screen (Screenshots | Live Scan)
+- [x] Mode toggle on audit screen (Screenshots | Live Scan) — **re-enabled**
 - [x] Shared `processClassificationResults()` helper — both modes use same pipeline
 - [x] AppState listener for detecting return from social media apps
-- [x] Type declarations for native module (`react-native-nitro-screen-recorder.d.ts`)
-- [x] Zero new TypeScript errors introduced
+- [x] Expo config plugin for nitro-screen-recorder in `app.json`
+- [ ] **PENDING:** Device testing after EAS build completes
 
 ### Phase 2C — Claude Haiku AI Insights (Pro Feature) ✅
 - [x] AI Insights types: `ContentType`, `AccountType`, `FrameInsight`, `AIInsightsResult`, etc. in shared package
@@ -171,10 +226,17 @@ All tables have RLS policies. Auto-creates user profile + streak row on auth sig
 - [x] Updated `cleanup.tsx` — auto-increments matching platform challenges when cleanup task completed (fire-and-forget)
 - [x] Zero genuinely new TypeScript errors (1 new follows pre-existing `database.types.ts → never` pattern)
 
+### What's Done But Not Originally Tracked:
+- [x] First EAS build working (development profile, Android APK)
+- [x] Migrations 001-004 applied to Supabase
+- [x] Seed data loaded
+- [x] App running on physical Android device via Dev Client
+- [x] Auth flow working (Supabase email/password with AsyncStorage persistence)
+
 ### What's NOT built yet:
-- [ ] First EAS build (need `eas build --profile development --platform android` to test native modules)
+- [ ] **Live Scan device RE-test** — model URL fix + frame extraction fix applied (JS-only), needs reload + retest on device
 - [ ] Deploy Edge Function + set `ANTHROPIC_API_KEY` secret (need `supabase functions deploy ai-feed-analysis`)
-- [ ] Run `supabase db reset` to apply migrations 003-004 + updated seed data
+- [ ] Email confirmation disabled in Supabase for dev testing (Dashboard → Auth → Email → disable "Confirm email")
 
 ## What's Next
 
@@ -531,7 +593,10 @@ npx expo start --dev-client
 - `expo-gl` — WebGL backend for TensorFlow.js
 - `expo-image-manipulator` — image cropping for grid segmentation
 - `expo-video-thumbnails` — frame extraction from screen recordings
-- `react-native-nitro-modules`, `react-native-nitro-screen-recorder` — cross-app screen recording
+- `expo-image-picker` — photo library access for screenshot selection
 - `expo-dev-client` — custom development builds (replaces Expo Go)
 - `react-native-view-shot` — capture shareable score cards as PNG
 - `expo-sharing` — native share sheet for score cards
+- `@react-native-async-storage/async-storage` — Supabase auth persistence in React Native
+- `react-native-reanimated@4.2.1` — animations (SDK 55 compatible version)
+- `react-native-nitro-modules@0.33.9`, `react-native-nitro-screen-recorder@0.6.3` — cross-app screen recording (MediaProjection + ReplayKit)

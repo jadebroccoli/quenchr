@@ -2,12 +2,19 @@ import { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import Svg, { Path, Circle as SvgCircle } from 'react-native-svg';
 import { evaluateBadges, getLevel } from '@quenchr/shared';
 import { supabase } from '@quenchr/supabase-client';
 import { useAuthStore } from '../../src/stores/auth-store';
 import { useAuditStore } from '../../src/stores/audit-store';
 import { useCleanupStore } from '../../src/stores/cleanup-store';
 import { useSubscriptionStore } from '../../src/stores/subscription-store';
+import { colors, type as typ, spacing, radius } from '../../src/tokens';
+import { PageHeader } from '../../src/components/ui/PageHeader';
+import { CardLight } from '../../src/components/ui/CardLight';
+import { CardDark } from '../../src/components/ui/CardDark';
+import { ProgressBar } from '../../src/components/ui/ProgressBar';
+import { StatRow } from '../../src/components/ui/StatRow';
 
 export default function ProfileScreen() {
   const user = useAuthStore((s) => s.user);
@@ -45,95 +52,103 @@ export default function ProfileScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.titleRow}>
-          <Text style={styles.title}>Profile</Text>
+        {/* Header row with settings gear */}
+        <View style={styles.headerRow}>
+          <View style={{ flex: 1 }}>
+            <PageHeader eyebrow="You" title="Redemption Arc." />
+          </View>
           <TouchableOpacity onPress={() => router.push('/settings')} style={styles.settingsButton}>
-            <Text style={styles.settingsIcon}>{'\u2699\uFE0F'}</Text>
+            <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={colors.ink3} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <SvgCircle cx={12} cy={12} r={3} />
+              <Path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
+            </Svg>
           </TouchableOpacity>
         </View>
 
         {/* User Info */}
-        <View style={styles.card}>
-          <View style={styles.avatarCircle}>
-            <Text style={styles.avatarText}>
-              {(user?.display_name?.[0] || user?.email?.[0] || '?').toUpperCase()}
-            </Text>
-          </View>
-          <Text style={styles.userName}>{user?.display_name || 'User'}</Text>
-          <Text style={styles.userEmail}>{user?.email}</Text>
-          <View style={[styles.tierBadge, isPro() && styles.tierBadgePro]}>
-            <Text style={styles.tierText}>{tier.toUpperCase()}</Text>
-          </View>
-        </View>
-
-        {/* Level */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Level</Text>
-          <Text style={styles.levelNumber}>Level {level.level}</Text>
-          <Text style={styles.levelLabel}>{level.label}</Text>
-          <View style={styles.levelBarContainer}>
-            <View style={[styles.levelBarFill, { width: `${level.progress * 100}%` }]} />
-          </View>
-          {level.nextLevelPoints !== null ? (
-            <Text style={styles.levelProgress}>
-              {level.currentPoints} / {level.nextLevelPoints} pts to next level
-            </Text>
-          ) : (
-            <Text style={styles.levelProgress}>Max level reached!</Text>
-          )}
-        </View>
-
-        {/* Stats */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Stats</Text>
-          <View style={styles.statsGrid}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{streak?.current_streak ?? 0}</Text>
-              <Text style={styles.statLabel}>Day Streak</Text>
+        <View style={styles.section}>
+          <View style={styles.userRow}>
+            <View style={styles.avatarCircle}>
+              <Text style={styles.avatarText}>
+                {(user?.display_name?.[0] || user?.email?.[0] || '?').toUpperCase()}
+              </Text>
             </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{streak?.total_points ?? 0}</Text>
-              <Text style={styles.statLabel}>Total Points</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{streak?.longest_streak ?? 0}</Text>
-              <Text style={styles.statLabel}>Best Streak</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Badges */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Badges</Text>
-          <View style={styles.badgeGrid}>
-            {badges.map((badge) => (
-              <View
-                key={badge.id}
-                style={[
-                  styles.badgeItem,
-                  !badge.unlocked && styles.badgeLocked,
-                ]}
-              >
-                <Text style={styles.badgeIcon}>{badge.icon}</Text>
-                <Text style={styles.badgeLabel}>{badge.label}</Text>
-                {badge.unlocked && (
-                  <Text style={styles.badgeUnlockedCheck}>✓</Text>
-                )}
+            <View style={styles.userInfo}>
+              <Text style={styles.userName}>{user?.display_name || 'User'}</Text>
+              <Text style={styles.userEmail}>{user?.email}</Text>
+              <View style={[styles.tierBadge, isPro() && styles.tierBadgePro]}>
+                <Text style={[styles.tierText, isPro() && styles.tierTextPro]}>
+                  {tier.toUpperCase()}
+                </Text>
               </View>
-            ))}
+            </View>
           </View>
+        </View>
+
+        {/* Level card */}
+        <View style={styles.section}>
+          <CardLight style={{ alignItems: 'center' }}>
+            <Text style={styles.levelNumber}>{level.level}</Text>
+            <Text style={styles.levelLabel}>{level.label}</Text>
+            <ProgressBar progress={level.progress} variant="light" style={styles.levelBar} />
+            {level.nextLevelPoints !== null ? (
+              <Text style={styles.levelCaption}>
+                {level.currentPoints} / {level.nextLevelPoints} pts to next level
+              </Text>
+            ) : (
+              <Text style={styles.levelCaption}>Max level reached!</Text>
+            )}
+          </CardLight>
+        </View>
+
+        {/* Stats card */}
+        <View style={styles.section}>
+          <CardDark>
+            <StatRow
+              items={[
+                { value: streak?.current_streak ?? 0, label: 'Day Streak', gold: true },
+                { value: streak?.total_points ?? 0, label: 'Total Points' },
+                { value: streak?.longest_streak ?? 0, label: 'Best Streak' },
+              ]}
+            />
+          </CardDark>
+        </View>
+
+        {/* Badges card */}
+        <View style={styles.section}>
+          <CardLight>
+            <Text style={styles.badgesTitle}>Badges</Text>
+            <View style={styles.badgeGrid}>
+              {badges.map((badge) => (
+                <View
+                  key={badge.id}
+                  style={[styles.badgeItem, !badge.unlocked && styles.badgeLocked]}
+                >
+                  <Text style={styles.badgeIcon}>{badge.icon}</Text>
+                  <Text style={styles.badgeLabel}>{badge.label}</Text>
+                  {badge.unlocked && (
+                    <Text style={styles.badgeCheck}>{'\u2713'}</Text>
+                  )}
+                </View>
+              ))}
+            </View>
+          </CardLight>
         </View>
 
         {/* Upgrade */}
         {!isPro() && (
-          <TouchableOpacity style={styles.upgradeButton} onPress={handleUpgrade}>
-            <Text style={styles.upgradeTitle}>Upgrade to Pro</Text>
-            <Text style={styles.upgradeSubtitle}>
-              Unlimited audits, all platforms, browser extension & more
-            </Text>
-          </TouchableOpacity>
+          <View style={styles.section}>
+            <CardDark>
+              <TouchableOpacity onPress={handleUpgrade} style={styles.upgradeInner}>
+                <Text style={styles.upgradeTitle}>Upgrade to Pro</Text>
+                <Text style={styles.upgradeSubtitle}>
+                  Unlimited audits, all platforms, browser extension & more
+                </Text>
+              </TouchableOpacity>
+            </CardDark>
+          </View>
         )}
 
         {/* Sign Out */}
@@ -148,201 +163,158 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: colors.cream,
   },
   content: {
-    padding: 24,
-    gap: 16,
-    paddingBottom: 40,
+    paddingBottom: 100,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#F8FAFC',
+  section: {
+    paddingHorizontal: spacing.pagePad,
+    marginBottom: spacing.sectionGap,
   },
-  titleRow: {
+  headerRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   settingsButton: {
     padding: 8,
+    marginTop: 30,
+    marginRight: spacing.pagePad,
   },
   settingsIcon: {
     fontSize: 24,
   },
-  card: {
-    backgroundColor: '#1E293B',
-    borderRadius: 16,
-    padding: 20,
+
+  // User info
+  userRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 14,
   },
   avatarCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#6366F1',
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: colors.char,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
   },
   avatarText: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    ...typ.h2,
+    color: colors.lt,
+  },
+  userInfo: {
+    flex: 1,
   },
   userName: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#F8FAFC',
+    ...typ.h3,
+    color: colors.ink,
   },
   userEmail: {
-    fontSize: 14,
-    color: '#64748B',
-    marginTop: 4,
-  },
-  tierBadge: {
-    backgroundColor: '#334155',
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    marginTop: 12,
-  },
-  tierBadgePro: {
-    backgroundColor: '#6366F1',
-  },
-  tierText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#F8FAFC',
-    letterSpacing: 1,
-  },
-  cardTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#64748B',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    alignSelf: 'flex-start',
-    marginBottom: 16,
-  },
-
-  // Level
-  levelNumber: {
-    fontSize: 36,
-    fontWeight: '800',
-    color: '#6366F1',
-  },
-  levelLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#94A3B8',
+    ...typ.bodySmall,
+    color: colors.ink2,
     marginTop: 2,
   },
-  levelBarContainer: {
+  tierBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.cream3,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    marginTop: 8,
+  },
+  tierBadgePro: {
+    backgroundColor: colors.gold,
+  },
+  tierText: {
+    ...typ.label,
+    color: colors.brown,
+  },
+  tierTextPro: {
+    color: colors.char,
+  },
+
+  // Level card
+  levelNumber: {
+    ...typ.bigNum,
+    color: colors.ink,
+  },
+  levelLabel: {
+    ...typ.body,
+    color: colors.ink2,
+    marginTop: 2,
+  },
+  levelBar: {
     width: '100%',
-    height: 8,
-    backgroundColor: '#0F172A',
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginTop: 16,
+    marginTop: 14,
   },
-  levelBarFill: {
-    height: '100%',
-    backgroundColor: '#6366F1',
-    borderRadius: 4,
-  },
-  levelProgress: {
-    fontSize: 12,
-    color: '#64748B',
+  levelCaption: {
+    ...typ.caption,
+    color: colors.ink3,
     marginTop: 8,
   },
 
-  // Stats
-  statsGrid: {
-    flexDirection: 'row',
-    gap: 16,
-    width: '100%',
-  },
-  statItem: {
-    flex: 1,
-    backgroundColor: '#0F172A',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#6366F1',
-  },
-  statLabel: {
-    fontSize: 11,
-    color: '#94A3B8',
-    marginTop: 4,
-    textAlign: 'center',
-  },
-
   // Badges
+  badgesTitle: {
+    ...typ.label,
+    color: colors.ink3,
+    marginBottom: 12,
+  },
   badgeGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
-    width: '100%',
+    gap: 10,
   },
   badgeItem: {
     width: '30%',
     alignItems: 'center',
-    backgroundColor: '#0F172A',
-    borderRadius: 12,
+    backgroundColor: colors.cream,
+    borderRadius: radius.card,
     padding: 12,
   },
   badgeLocked: {
-    opacity: 0.4,
+    opacity: 0.3,
   },
   badgeIcon: {
     fontSize: 28,
     marginBottom: 4,
   },
   badgeLabel: {
-    fontSize: 10,
-    color: '#94A3B8',
+    ...typ.caption,
+    color: colors.ink3,
     textAlign: 'center',
   },
-  badgeUnlockedCheck: {
+  badgeCheck: {
     position: 'absolute',
     top: 4,
     right: 4,
-    fontSize: 12,
-    color: '#22C55E',
+    ...typ.caption,
+    color: colors.gold,
     fontWeight: '800',
   },
 
   // Upgrade
-  upgradeButton: {
-    backgroundColor: '#6366F1',
-    borderRadius: 16,
-    padding: 20,
+  upgradeInner: {
     alignItems: 'center',
   },
   upgradeTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    ...typ.h3,
+    color: colors.lt,
   },
   upgradeSubtitle: {
-    fontSize: 13,
-    color: '#C7D2FE',
+    ...typ.body,
+    color: colors.lt3,
     marginTop: 4,
     textAlign: 'center',
   },
+
+  // Sign out
   signOutButton: {
     padding: 16,
     alignItems: 'center',
   },
   signOutText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#EF4444',
+    ...typ.btn,
+    color: colors.red,
   },
 });

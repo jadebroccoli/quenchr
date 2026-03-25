@@ -1,10 +1,20 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../src/stores/auth-store';
 import { useAuditStore } from '../../src/stores/audit-store';
 import { useCleanupStore } from '../../src/stores/cleanup-store';
 import { getFeedHealthInfo, getAuditBreakdown } from '@quenchr/shared';
+import { colors, type as typ, spacing, radius } from '../../src/tokens';
+import {
+  PageHeader,
+  SectionDivider,
+  CardLight,
+  CardDark,
+  PrimaryButton,
+  StatRow,
+  ScoreRing,
+} from '../../src/components/ui';
 
 export default function DashboardScreen() {
   const router = useRouter();
@@ -19,123 +29,73 @@ export default function DashboardScreen() {
   const breakdown = currentAudit ? getAuditBreakdown(currentAudit) : null;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.greeting}>
-          Hey{user?.display_name ? `, ${user.display_name}` : ''}
-        </Text>
-        <Text style={styles.subtitle}>Here's your feed health overview</Text>
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <PageHeader
+          eyebrow="Quenchr"
+          title="Your feed, on trial."
+          subtitle="Here's where things stand. Brace yourself."
+        />
+        <SectionDivider />
 
-        {/* Feed Score Card */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Feed Score</Text>
-          {feedHealth && breakdown ? (
-            <>
-              <Text style={[styles.scoreValue, { color: feedHealth.color }]}>
-                {feedHealth.score}
-              </Text>
-              <Text style={[styles.scoreLabel, { color: feedHealth.color }]}>
-                {feedHealth.label}
-              </Text>
+        <View style={styles.body}>
+          {/* Feed Score Card */}
+          <CardLight>
+            <Text style={styles.eyebrow}>FEED SCORE</Text>
+            <View style={styles.scoreCenter}>
+              <ScoreRing score={feedHealth ? feedHealth.score : null} />
+            </View>
+            {feedHealth && breakdown ? (
+              <>
+                <Text style={styles.scoreDescription}>
+                  {feedHealth.label} — {breakdown.suggestivePercent}% suggestive content detected
+                </Text>
+                <PrimaryButton
+                  label="Start Cleanup Session"
+                  onPress={() => router.push('/(tabs)/cleanup')}
+                  style={{ marginTop: 14 }}
+                />
+              </>
+            ) : (
+              <>
+                <Text style={styles.emptyText}>
+                  Unscored. Like your moral compass, apparently. Run an audit to find out how bad it actually is.
+                </Text>
+                <PrimaryButton
+                  label="Start Audit"
+                  onPress={() => router.push('/(tabs)/audit')}
+                  style={{ marginTop: 14 }}
+                />
+              </>
+            )}
+          </CardLight>
 
-              {/* Mini breakdown */}
-              <View style={styles.breakdownRow}>
-                <View style={styles.breakdownItem}>
-                  <Text style={styles.breakdownValue}>{breakdown.suggestivePercent}%</Text>
-                  <Text style={styles.breakdownLabel}>Suggestive</Text>
-                </View>
-                <View style={styles.breakdownDivider} />
-                <View style={styles.breakdownItem}>
-                  <Text style={[styles.breakdownValue, { color: '#22C55E' }]}>
-                    {breakdown.cleanPercent}%
-                  </Text>
-                  <Text style={styles.breakdownLabel}>Clean</Text>
-                </View>
+          {/* Streak Card */}
+          <CardDark>
+            <Text style={styles.eyebrowDark}>STREAK</Text>
+            <StatRow
+              items={[
+                { value: streak?.current_streak ?? 0, label: 'Current' },
+                { value: streak?.longest_streak ?? 0, label: 'Best' },
+                { value: streak?.total_points ?? 0, label: 'Points', gold: true },
+              ]}
+            />
+          </CardDark>
+
+          {/* Today's Progress */}
+          <CardLight>
+            <Text style={styles.eyebrow}>TODAY'S PROGRESS</Text>
+            <View style={styles.miniGrid}>
+              <View style={styles.miniCell}>
+                <Text style={styles.miniValue}>{tasksCompletedToday}</Text>
+                <Text style={styles.miniLabel}>Tasks Done</Text>
               </View>
-
-              {/* Cleanup CTA */}
-              <TouchableOpacity
-                style={styles.cleanupCTA}
-                onPress={() => router.push('/(tabs)/cleanup')}
-              >
-                <Text style={styles.cleanupCTAText}>Start a Cleanup Session →</Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <TouchableOpacity
-              style={styles.emptyState}
-              onPress={() => router.push('/(tabs)/audit')}
-            >
-              <Text style={styles.emptyEmoji}>🔍</Text>
-              <Text style={styles.emptyText}>
-                Run your first Feed Audit to see how clean your algorithm is
-              </Text>
-              <View style={styles.emptyButton}>
-                <Text style={styles.emptyButtonText}>Start Audit</Text>
+              <View style={styles.miniCell}>
+                <Text style={[styles.miniValue, { color: colors.gold }]}>{challengesDone}</Text>
+                <Text style={styles.miniLabel}>Challenges</Text>
               </View>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Streak Card */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Streak</Text>
-          <View style={styles.streakRow}>
-            <View style={styles.streakItem}>
-              <Text style={styles.streakValue}>{streak?.current_streak ?? 0}</Text>
-              <Text style={styles.streakLabel}>Current</Text>
             </View>
-            <View style={styles.streakDivider} />
-            <View style={styles.streakItem}>
-              <Text style={styles.streakValue}>{streak?.longest_streak ?? 0}</Text>
-              <Text style={styles.streakLabel}>Best</Text>
-            </View>
-            <View style={styles.streakDivider} />
-            <View style={styles.streakItem}>
-              <Text style={styles.streakValue}>{streak?.total_points ?? 0}</Text>
-              <Text style={styles.streakLabel}>Points</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Today's Progress */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Today's Progress</Text>
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{tasksCompletedToday}</Text>
-              <Text style={styles.statLabel}>Tasks Done</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{challengesDone}</Text>
-              <Text style={styles.statLabel}>Challenges</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Quick Actions */}
-        <View style={styles.quickActionsRow}>
-          <TouchableOpacity
-            style={styles.quickAction}
-            onPress={() => router.push('/(tabs)/audit')}
-          >
-            <Text style={styles.quickActionEmoji}>🔍</Text>
-            <Text style={styles.quickActionText}>New Audit</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.quickAction}
-            onPress={() => router.push('/(tabs)/cleanup')}
-          >
-            <Text style={styles.quickActionEmoji}>🧹</Text>
-            <Text style={styles.quickActionText}>Cleanup</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.quickAction}
-            onPress={() => router.push('/(tabs)/challenges')}
-          >
-            <Text style={styles.quickActionEmoji}>🏆</Text>
-            <Text style={styles.quickActionText}>Challenges</Text>
-          </TouchableOpacity>
+          </CardLight>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -143,187 +103,68 @@ export default function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safe: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: colors.cream,
   },
-  content: {
-    padding: 24,
-    gap: 16,
-    paddingBottom: 40,
+  scroll: {
+    paddingBottom: 100,
   },
-  greeting: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#F8FAFC',
+  body: {
+    paddingHorizontal: spacing.pagePad,
+    gap: spacing.cardGap,
   },
-  subtitle: {
-    fontSize: 15,
-    color: '#94A3B8',
-    marginBottom: 8,
+
+  // Eyebrows
+  eyebrow: {
+    ...typ.label,
+    color: colors.ink3,
+    marginBottom: 14,
   },
-  card: {
-    backgroundColor: '#1E293B',
-    borderRadius: 16,
-    padding: 20,
+  eyebrowDark: {
+    ...typ.label,
+    color: colors.lt3,
+    marginBottom: 10,
   },
-  cardTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#64748B',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 16,
+
+  // Score
+  scoreCenter: {
+    alignItems: 'center',
+    paddingVertical: 10,
   },
-  scoreValue: {
-    fontSize: 64,
-    fontWeight: '800',
+  scoreDescription: {
+    ...typ.body,
+    color: colors.ink2,
     textAlign: 'center',
-  },
-  scoreLabel: {
-    fontSize: 18,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginTop: 4,
-  },
-
-  // Breakdown
-  breakdownRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 16,
-    gap: 0,
-  },
-  breakdownItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  breakdownValue: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#EF4444',
-  },
-  breakdownLabel: {
-    fontSize: 12,
-    color: '#94A3B8',
-    marginTop: 2,
-  },
-  breakdownDivider: {
-    width: 1,
-    height: 32,
-    backgroundColor: '#334155',
-  },
-
-  // Cleanup CTA
-  cleanupCTA: {
-    backgroundColor: '#6366F1',
-    borderRadius: 10,
-    padding: 14,
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  cleanupCTAText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-
-  // Empty state
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 16,
-  },
-  emptyEmoji: {
-    fontSize: 40,
-    marginBottom: 12,
+    marginTop: 10,
   },
   emptyText: {
-    fontSize: 14,
-    color: '#94A3B8',
+    ...typ.body,
+    color: colors.ink3,
     textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 16,
-  },
-  emptyButton: {
-    backgroundColor: '#6366F1',
-    borderRadius: 10,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-  },
-  emptyButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
+    marginTop: 10,
   },
 
-  // Streak
-  streakRow: {
+  // Mini grid (Today's Progress)
+  miniGrid: {
     flexDirection: 'row',
-    alignItems: 'center',
+    gap: 10,
   },
-  streakItem: {
+  miniCell: {
     flex: 1,
+    backgroundColor: colors.cream3,
+    borderRadius: radius.mini,
+    paddingVertical: 14,
     alignItems: 'center',
   },
-  streakValue: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#F8FAFC',
+  miniValue: {
+    ...typ.statNum,
+    color: colors.ink,
   },
-  streakLabel: {
-    fontSize: 12,
-    color: '#94A3B8',
+  miniLabel: {
+    ...typ.caption,
+    color: colors.ink3,
     marginTop: 4,
-  },
-  streakDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: '#334155',
-  },
-
-  // Stats
-  statsRow: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  statItem: {
-    flex: 1,
-    backgroundColor: '#0F172A',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#6366F1',
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#94A3B8',
-    marginTop: 4,
-  },
-
-  // Quick actions
-  quickActionsRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  quickAction: {
-    flex: 1,
-    backgroundColor: '#1E293B',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    gap: 8,
-  },
-  quickActionEmoji: {
-    fontSize: 24,
-  },
-  quickActionText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#94A3B8',
+    textTransform: 'uppercase',
   },
 });
