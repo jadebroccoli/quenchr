@@ -184,10 +184,10 @@ serve(async (req: Request) => {
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
+        'anthropic-version': '2024-10-22',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-haiku-4-5-20251001',
         max_tokens: 2048,
         system: systemPrompt,
         messages: [
@@ -205,7 +205,7 @@ serve(async (req: Request) => {
     if (!anthropicResponse.ok) {
       const errText = await anthropicResponse.text();
       console.error('[ai-feed-analysis] Anthropic API error:', anthropicResponse.status, errText);
-      return errorResponse(502, 'AI analysis service unavailable');
+      return errorResponse(502, `AI analysis service error (${anthropicResponse.status}): ${errText.substring(0, 200)}`);
     }
 
     const anthropicData = await anthropicResponse.json();
