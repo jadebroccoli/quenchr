@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { Link, router } from 'expo-router';
 import { supabase } from '@quenchr/supabase-client';
+import { colors, type as typ, spacing, radius } from '../../src/tokens';
+import { QuenchrLogo } from '../../src/components/ui';
 
 export default function SignupScreen() {
   const [email, setEmail] = useState('');
@@ -38,7 +40,8 @@ export default function SignupScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={styles.header}>
-        <Text style={styles.logo}>Quenchr</Text>
+        <QuenchrLogo size={72} variant="brown" />
+        <Text style={styles.title}>Create Account</Text>
         <Text style={styles.tagline}>Take back control of your feed.</Text>
       </View>
 
@@ -46,14 +49,14 @@ export default function SignupScreen() {
         <TextInput
           style={styles.input}
           placeholder="Display Name (optional)"
-          placeholderTextColor="#64748B"
+          placeholderTextColor={colors.ink4}
           value={displayName}
           onChangeText={setDisplayName}
         />
         <TextInput
           style={styles.input}
           placeholder="Email"
-          placeholderTextColor="#64748B"
+          placeholderTextColor={colors.ink4}
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
@@ -62,7 +65,7 @@ export default function SignupScreen() {
         <TextInput
           style={styles.input}
           placeholder="Password"
-          placeholderTextColor="#64748B"
+          placeholderTextColor={colors.ink4}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -91,63 +94,62 @@ export default function SignupScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: colors.cream,
     justifyContent: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: spacing.pagePad,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 48,
+    marginBottom: 40,
   },
-  logo: {
-    fontSize: 36,
-    fontWeight: '800',
-    color: '#6366F1',
-    letterSpacing: -1,
+  title: {
+    ...typ.h2,
+    color: colors.brown,
+    marginTop: 14,
   },
   tagline: {
-    fontSize: 16,
-    color: '#94A3B8',
+    ...typ.body,
+    color: colors.ink3,
     textAlign: 'center',
-    marginTop: 8,
+    marginTop: 6,
   },
   form: {
-    gap: 16,
+    gap: 14,
   },
   input: {
-    backgroundColor: '#1E293B',
-    borderRadius: 12,
+    backgroundColor: colors.cream2,
+    borderRadius: radius.btn,
     padding: 16,
-    fontSize: 16,
-    color: '#F8FAFC',
+    fontSize: 15,
+    fontFamily: 'DMSans_500Medium',
+    color: colors.ink,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: colors.cream3,
   },
   button: {
-    backgroundColor: '#6366F1',
-    borderRadius: 12,
+    backgroundColor: colors.brown,
+    borderRadius: radius.btn,
     padding: 16,
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: 6,
   },
   buttonDisabled: {
-    opacity: 0.6,
+    opacity: 0.5,
   },
   buttonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
+    ...typ.btn,
+    color: colors.lt,
   },
   linkButton: {
     alignItems: 'center',
     marginTop: 8,
   },
   linkText: {
-    color: '#94A3B8',
-    fontSize: 14,
+    ...typ.body,
+    color: colors.ink3,
   },
   linkBold: {
-    color: '#6366F1',
-    fontWeight: '600',
+    color: colors.brown,
+    fontFamily: 'DMSans_700Bold',
   },
 });
