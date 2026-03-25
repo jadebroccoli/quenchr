@@ -73,6 +73,9 @@ interface AuditState {
 
   // Audit history actions
   fetchAuditHistory: (userId: string) => Promise<void>;
+
+  // Load latest audit from DB (persists across navigation)
+  fetchLatestAudit: (userId: string) => Promise<void>;
 }
 
 export const useAuditStore = create<AuditState>((set) => ({
@@ -142,6 +145,21 @@ export const useAuditStore = create<AuditState>((set) => ({
     set((state) => ({ aiInsights: { ...state.aiInsights, error, status: 'error' as const } })),
   resetAIInsights: () =>
     set({ aiInsights: { status: 'idle', result: null, error: null } }),
+
+  // Load latest audit from DB so results survive navigation
+  fetchLatestAudit: async (userId: string) => {
+    const { data, error } = await supabase
+      .from('feed_audits')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (!error && data) {
+      set({ currentAudit: data as FeedAudit });
+    }
+  },
 
   // Audit history actions
   fetchAuditHistory: async (userId: string) => {

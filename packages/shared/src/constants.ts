@@ -53,7 +53,7 @@ export const AI_INSIGHTS_CONFIG = {
 // NSFW detection thresholds
 export const NSFW_THRESHOLDS = {
   /** Confidence threshold to flag as suggestive */
-  suggestive: 0.3,
+  suggestive: 0.2,
   /** Categories considered suggestive */
   suggestiveCategories: ['porn', 'hentai', 'sexy'] as const,
   /** Grid size for splitting screenshots into regions */

@@ -24,6 +24,7 @@ export default function DashboardScreen() {
   const currentAudit = useAuditStore((s) => s.currentAudit);
   const auditHistory = useAuditStore((s) => s.auditHistory);
   const fetchAuditHistory = useAuditStore((s) => s.fetchAuditHistory);
+  const fetchLatestAudit = useAuditStore((s) => s.fetchLatestAudit);
   const streak = useCleanupStore((s) => s.streak);
   const tasksCompletedToday = useCleanupStore((s) => s.tasksCompletedToday);
   const challenges = useCleanupStore((s) => s.challenges);
@@ -35,8 +36,11 @@ export default function DashboardScreen() {
   useEffect(() => {
     if (user?.id) {
       fetchAuditHistory(user.id);
+      if (!currentAudit) {
+        fetchLatestAudit(user.id);
+      }
     }
-  }, [user?.id, fetchAuditHistory]);
+  }, [user?.id]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>

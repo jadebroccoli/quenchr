@@ -113,9 +113,18 @@ export default function AuditScreen() {
     setModelReady, setScanError, addAudit, resetScan,
     auditMode, setAuditMode,
     setAIInsightsStatus, setAIInsightsResult, setAIInsightsError,
+    currentAudit, fetchLatestAudit,
   } = useAuditStore();
 
+  const user = useAuthStore((s) => s.user);
   const [screenshots, setScreenshots] = useState<string[]>([]);
+
+  // Load the latest audit from DB so results survive navigation
+  useEffect(() => {
+    if (user?.id && !currentAudit) {
+      fetchLatestAudit(user.id);
+    }
+  }, [user?.id]);
 
   useEffect(() => {
     (async () => {
