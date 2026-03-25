@@ -135,15 +135,19 @@ serve(async (req: Request) => {
       return errorResponse(401, 'Invalid or expired token');
     }
 
-    // 2. Verify Pro subscription
-    const { data: userData } = await supabase
-      .from('users')
-      .select('subscription_tier')
-      .eq('id', user.id)
-      .single();
+    // 2. Verify Pro subscription (skip in dev mode)
+    const devMode = req.headers.get('x-quenchr-dev-mode') === 'true';
 
-    if (userData?.subscription_tier !== 'pro') {
-      return errorResponse(403, 'Pro subscription required for AI analysis');
+    if (!devMode) {
+      const { data: userData } = await supabase
+        .from('users')
+        .select('subscription_tier')
+        .eq('id', user.id)
+        .single();
+
+      if (userData?.subscription_tier !== 'pro') {
+        return errorResponse(403, 'Pro subscription required for AI analysis');
+      }
     }
 
     // 3. Parse request body

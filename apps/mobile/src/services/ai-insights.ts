@@ -3,6 +3,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { supabase } from '@quenchr/supabase-client';
 import { AI_INSIGHTS_CONFIG } from '@quenchr/shared';
 import type { AuditImageResult, AIInsightsResult, Platform } from '@quenchr/shared';
+import { useSettingsStore } from '../stores/settings-store';
 
 // ── Constants ──
 
@@ -60,6 +61,7 @@ export async function analyzeWithAI(
   );
 
   // Call Supabase Edge Function (auth token auto-attached)
+  const devMode = useSettingsStore.getState().devMode;
   const { data, error } = await supabase.functions.invoke(FUNCTION_NAME, {
     body: {
       frames,
@@ -67,6 +69,7 @@ export async function analyzeWithAI(
       feed_score: feedScore,
       audit_id: auditId,
     },
+    headers: devMode ? { 'x-quenchr-dev-mode': 'true' } : undefined,
   });
 
   if (error) {
