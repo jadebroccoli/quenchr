@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -9,9 +9,10 @@ import {
 } from '@quenchr/shared';
 import { useAuditStore } from '../stores/audit-store';
 import { useSubscriptionStore } from '../stores/subscription-store';
+import { ScoreSparkline } from './ui/ScoreSparkline';
 import { ShareableScoreCard, type ShareableScoreCardHandle } from './ShareableScoreCard';
 import { AIInsightsSection } from './AIInsightsSection';
-import { selectFlaggedFrames, analyzeWithAI } from '../services/ai-insights';
+// AI insights retry is not supported — user must run a new scan
 import { colors, type as typ, radius, spacing } from '../tokens';
 
 interface Props {
@@ -21,8 +22,13 @@ interface Props {
 
 export function AuditResultsView({ onNewAudit, onStartCleanup }: Props) {
   const router = useRouter();
-  const { currentAudit, aiInsights, imageResults, haikuScanStatus, setAIInsightsStatus, setAIInsightsResult, setAIInsightsError } = useAuditStore();
-  const isPro = useSubscriptionStore((s) => s.isPro());
+  const {
+    currentAudit, aiInsights, imageResults, lastCompletedImageResults,
+    haikuScanStatus, setAIInsightsStatus, setAIInsightsResult, setAIInsightsError,
+    isViewingHistory, exitHistoryView,
+  } = useAuditStore();
+  const effectiveImageResults = imageResults ?? lastCompletedImageResults;
+  const isPro = useSubscriptionStore((s) => s.proAccess);
 
   const isHaikuEnhanced = (currentAudit as any)?.scan_type === 'haiku' || haikuScanStatus === 'done';
 
@@ -36,9 +42,9 @@ export function AuditResultsView({ onNewAudit, onStartCleanup }: Props) {
 
   const audit = currentAudit;
   const breakdown = audit ? getAuditBreakdown(audit) : null;
-  // Use breakdown-derived score so display always matches the bars.
-  // The stored feed_score may have been computed with a different threshold.
-  const feedScore = breakdown?.suggestivePercent ?? audit?.feed_score ?? 0;
+  // Use the stored feed_score as canonical source — it's written by NSFWJS
+  // and then overwritten by Haiku for Pro users, so it's always up-to-date.
+  const feedScore = audit?.feed_score ?? 0;
   const health = getFeedHealthInfo(feedScore);
 
   const platformLabel = audit ? PLATFORMS[audit.platform].label : '';
@@ -75,11 +81,25 @@ export function AuditResultsView({ onNewAudit, onStartCleanup }: Props) {
     outputRange: [0, feedScore],
   });
 
+  const historyDate = isViewingHistory && audit?.created_at
+    ? new Date(audit.created_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+    : null;
+
   return (
     <SafeAreaView style={styles.container}>
+      {/* Back bar — only shown when reviewing a past audit */}
+      {isViewingHistory && (
+        <TouchableOpacity style={styles.backBar} onPress={exitHistoryView} activeOpacity={0.7}>
+          <Text style={styles.backArrow}>←</Text>
+          <Text style={styles.backText}>
+            {historyDate ? `Scan from ${historyDate}` : 'Back to History'}
+          </Text>
+        </TouchableOpacity>
+      )}
+
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Score counter */}
-        <AnimatedScoreText value={displayScore} color={health.color} />
+        <AnimatedScoreText value={displayScore} targetScore={feedScore} color={health.color} />
 
         {/* Haiku scanning indicator */}
         {haikuScanStatus === 'scanning' && (
@@ -104,7 +124,7 @@ export function AuditResultsView({ onNewAudit, onStartCleanup }: Props) {
         <Animated.Text style={[styles.hookText, { opacity: fadeAnim }]}>
           Your {platformLabel} {pageName} is{' '}
           <Text style={{ color: health.color }}>
-            {breakdown?.suggestivePercent ?? 0}% thirst traps
+            {feedScore}% thirst traps
           </Text>
         </Animated.Text>
 
@@ -114,28 +134,22 @@ export function AuditResultsView({ onNewAudit, onStartCleanup }: Props) {
             <Text style={styles.breakdownTitle}>Breakdown</Text>
 
             <BreakdownBar
-              label="Suggestive"
-              percent={breakdown.suggestivePercent}
+              label="Explicit"
+              percent={breakdown.explicitPercent}
               color={colors.red}
               anim={bar1Anim}
             />
             <BreakdownBar
-              label="Explicit"
-              percent={breakdown.explicitPercent}
-              color={colors.red}
-              anim={bar2Anim}
-            />
-            <BreakdownBar
-              label="Sexy"
+              label="Suggestive"
               percent={breakdown.sexyPercent}
               color={colors.gold}
-              anim={bar3Anim}
+              anim={bar2Anim}
             />
             <BreakdownBar
               label="Clean"
               percent={breakdown.cleanPercent}
               color={colors.brown}
-              anim={bar4Anim}
+              anim={bar3Anim}
             />
           </View>
         )}
@@ -144,7 +158,7 @@ export function AuditResultsView({ onNewAudit, onStartCleanup }: Props) {
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
             <Text style={styles.statValue}>{audit?.total_scanned ?? 0}</Text>
-            <Text style={styles.statLabel}>Regions</Text>
+            <Text style={styles.statLabel}>Frames</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={[styles.statValue, { color: colors.red }]}>
@@ -160,26 +174,20 @@ export function AuditResultsView({ onNewAudit, onStartCleanup }: Props) {
           </View>
         </View>
 
-        {/* AI Insights — Pro feature */}
-        <View style={{ width: '100%' }}>
-          <AIInsightsSection
-            aiInsights={aiInsights}
-            isPro={isPro}
-            onUpgrade={() => router.push('/paywall')}
-            onRetry={() => {
-              // Retry AI analysis with existing data
-              if (imageResults && currentAudit) {
-                const flaggedFrames = selectFlaggedFrames(imageResults);
-                if (flaggedFrames.length > 0) {
-                  setAIInsightsStatus('loading');
-                  // Note: frameUris aren't available here for retry — this is a known limitation.
-                  // A full retry would need the original URIs stored. For now, show error state.
-                  setAIInsightsError('Please run a new audit to retry AI analysis.');
-                }
-              }
-            }}
-          />
-        </View>
+        {/* AI Insights — Pro feature (shown when we have results or are loading/have frame data) */}
+        {(effectiveImageResults || aiInsights.status === 'loading' || aiInsights.status === 'success' || aiInsights.status === 'error') && (
+          <View style={{ width: '100%' }}>
+            <AIInsightsSection
+              aiInsights={aiInsights}
+              isPro={isPro}
+              onUpgrade={() => router.push('/paywall')}
+              onRetry={() => {
+                // Retry not supported without original frame URIs — prompt new scan
+                setAIInsightsError('Please run a new audit to retry AI analysis.');
+              }}
+            />
+          </View>
+        )}
 
         {/* Share button */}
         <TouchableOpacity
@@ -191,9 +199,15 @@ export function AuditResultsView({ onNewAudit, onStartCleanup }: Props) {
 
         {/* Action buttons */}
         <View style={styles.actions}>
-          <TouchableOpacity style={styles.secondaryButton} onPress={onNewAudit}>
-            <Text style={styles.secondaryButtonText}>New Audit</Text>
-          </TouchableOpacity>
+          {isViewingHistory ? (
+            <TouchableOpacity style={styles.secondaryButton} onPress={exitHistoryView}>
+              <Text style={styles.secondaryButtonText}>← Back</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={styles.secondaryButton} onPress={onNewAudit}>
+              <Text style={styles.secondaryButtonText}>New Audit</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity style={styles.primaryButton} onPress={onStartCleanup}>
             <Text style={styles.primaryButtonText}>Start Cleanup</Text>
           </TouchableOpacity>
@@ -208,23 +222,26 @@ export function AuditResultsView({ onNewAudit, onStartCleanup }: Props) {
 
 // ── Animated Score Display ──
 
-function AnimatedScoreText({ value, color }: { value: Animated.AnimatedInterpolation<number>; color: string }) {
-  const textRef = useRef<Text>(null);
+function AnimatedScoreText({ value, targetScore, color }: { value: Animated.AnimatedInterpolation<number>; targetScore: number; color: string }) {
+  const [display, setDisplay] = useState('0');
 
   useEffect(() => {
     const listenerId = value.addListener(({ value: v }) => {
-      textRef.current?.setNativeProps({ text: String(Math.round(v)) });
+      setDisplay(String(Math.round(v)));
     });
     return () => value.removeListener(listenerId);
   }, [value]);
 
+  // Sync display when targetScore changes after animation completes
+  // (e.g., Haiku overwrites the NSFWJS score)
+  useEffect(() => {
+    setDisplay(String(targetScore));
+  }, [targetScore]);
+
   return (
-    <Animated.Text
-      ref={textRef as any}
-      style={[styles.scoreText, { color }]}
-    >
-      0
-    </Animated.Text>
+    <Text style={[styles.scoreText, { color }]}>
+      {display}
+    </Text>
   );
 }
 
@@ -261,6 +278,26 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.cream,
+  },
+  backBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.pagePad,
+    paddingVertical: 12,
+    backgroundColor: colors.cream2,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.cream3,
+    gap: 8,
+  },
+  backArrow: {
+    ...typ.body,
+    color: colors.ink2,
+    fontSize: 18,
+    lineHeight: 20,
+  },
+  backText: {
+    ...typ.body,
+    color: colors.ink2,
   },
   content: {
     padding: spacing.pagePad,

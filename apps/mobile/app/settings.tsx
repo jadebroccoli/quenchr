@@ -3,11 +3,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import Svg, { Path } from 'react-native-svg';
 import { useSubscriptionStore } from '../src/stores/subscription-store';
+import { useSettingsStore } from '../src/stores/settings-store';
 import { colors, type as typ, spacing, radius } from '../src/tokens';
 import { CardLight, CardDark, SectionDivider } from '../src/components/ui';
 
 export default function SettingsScreen() {
-  const { devMode, setDevMode, tier } = useSubscriptionStore();
+  const { tier } = useSubscriptionStore();
+  const { devMode, setDevMode } = useSettingsStore();
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>

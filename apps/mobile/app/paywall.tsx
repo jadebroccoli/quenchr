@@ -16,6 +16,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSubscriptionStore } from '../src/stores/subscription-store';
 import Svg, { Path } from 'react-native-svg';
 import Purchases, { PurchasesPackage } from 'react-native-purchases';
 import { colors, type as typ } from '../src/tokens';
@@ -26,7 +27,7 @@ import { QuenchrLogo } from '../src/components/ui';
 const features = [
   {
     title: 'AI Feed Analysis',
-    body: 'Claude analyzes your feed frame-by-frame and tells you exactly what your algorithm thinks you want.',
+    body: 'Quenchr AI analyzes your feed frame-by-frame and tells you exactly what your algorithm thinks you want.',
   },
   {
     title: 'Unlimited Audits',
@@ -82,6 +83,9 @@ function CloseIcon() {
 export default function PaywallScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { hasTrialExpired, startTrial, isTrialActive } = useSubscriptionStore();
+  const trialExpired = hasTrialExpired();
+  const trialActive = isTrialActive();
 
   // Plan state
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'annual'>('annual');
@@ -142,6 +146,12 @@ export default function PaywallScreen() {
       }),
     ]).start();
   }
+
+  // Start free trial
+  const handleStartTrial = async () => {
+    await startTrial();
+    router.replace('/(tabs)');
+  };
 
   // Purchase
   const handlePurchase = async () => {
@@ -214,10 +224,14 @@ export default function PaywallScreen() {
             <Text style={styles.logoText}>Quenchr</Text>
           </View>
           <Text style={styles.headline}>
-            {'Your feed deserves\nbetter than this.'}
+            {trialExpired ? 'Your trial has ended.' : 'Your feed deserves\nbetter than this.'}
           </Text>
           <Text style={styles.subheadline}>
-            Upgrade to Pro and actually fix your algorithm — not just feel bad about it.
+            {trialExpired
+              ? 'Upgrade to Pro to keep your streak alive and your feed clean.'
+              : !trialActive
+              ? 'Try Pro free for 7 days — no card required. Actually fix your algorithm.'
+              : 'Upgrade to Pro and actually fix your algorithm — not just feel bad about it.'}
           </Text>
         </View>
 
@@ -280,8 +294,17 @@ export default function PaywallScreen() {
         </View>
 
         {/* ── CTA Button ── */}
+        {!trialActive && !trialExpired && (
+          <TouchableOpacity
+            style={styles.ctaButton}
+            onPress={handleStartTrial}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.ctaText}>Start Free Trial — 7 Days</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
-          style={[styles.ctaButton, loading && styles.ctaButtonLoading]}
+          style={[styles.ctaButton, (!trialExpired && !trialActive) && styles.ctaButtonSecondary, loading && styles.ctaButtonLoading]}
           onPress={handlePurchase}
           disabled={loading}
           activeOpacity={0.8}
@@ -289,7 +312,9 @@ export default function PaywallScreen() {
           {loading ? (
             <ActivityIndicator color={colors.brown} size="small" />
           ) : (
-            <Text style={styles.ctaText}>Start Free Trial — 7 Days</Text>
+            <Text style={[styles.ctaText, (!trialExpired && !trialActive) && styles.ctaTextSecondary]}>
+              {trialExpired ? 'Upgrade to Pro' : 'Subscribe Now'}
+            </Text>
           )}
         </TouchableOpacity>
 
@@ -499,10 +524,19 @@ const styles = StyleSheet.create({
   ctaButtonLoading: {
     opacity: 0.7,
   },
+  ctaButtonSecondary: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: colors.lt4,
+    marginTop: 10,
+  },
   ctaText: {
     fontFamily: 'DMSans_700Bold',
     fontSize: 15,
     color: colors.brown,
+  },
+  ctaTextSecondary: {
+    color: colors.lt4,
   },
 
   // Footer

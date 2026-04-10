@@ -1,7 +1,8 @@
 {
   "cli": {
     "version": ">= 16.0.0",
-    "appVersionSource": "local"
+    "appVersionSource": "local",
+    "promptToConfigurePushNotifications": false
   },
   "build": {
     "development": {
@@ -33,6 +34,14 @@
         "buildType": "apk"
       }
     },
+    "preview-aab": {
+      "distribution": "internal",
+      "node": "22.12.0",
+      "pnpm": "9.15.0",
+      "android": {
+        "buildType": "app-bundle"
+      }
+    },
     "production": {
       "node": "22.12.0",
       "pnpm": "9.15.0",
@@ -40,6 +49,7 @@
     }
   },
   "submit": {
+    "preview": {},
     "production": {}
   }
 }

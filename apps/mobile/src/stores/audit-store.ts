@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import type { FeedAudit, Platform, AuditImageResult, AIInsightsResult, AIInsightsStatus } from '@quenchr/shared';
-import type { ScanProgress } from '../services/nsfw-classifier';
+import type { ScanProgress as LegacyScanProgress } from '../services/nsfw-classifier';
 import { supabase } from '@quenchr/supabase-client';
 
+/** @deprecated Use FeedAudit[] for audit history instead */
 export interface AuditHistoryEntry {
   score: number;
   date: string;
@@ -11,6 +12,12 @@ export interface AuditHistoryEntry {
 export type AuditScreenState = 'input' | 'scanning' | 'results';
 export type AuditMode = 'screenshots' | 'livescan';
 export type LiveScanState = 'idle' | 'recording' | 'stopping' | 'extracting_frames';
+
+/** Progress for Haiku-based scan (replaces NSFWJS grid-based progress) */
+export interface ScanProgress {
+  phase: 'uploading' | 'analyzing' | 'complete';
+  percentComplete: number;
+}
 
 export interface AIInsightsState {
   status: AIInsightsStatus;
@@ -29,6 +36,7 @@ interface AuditState {
   screenState: AuditScreenState;
   scanProgress: ScanProgress | null;
   imageResults: AuditImageResult[] | null;
+  lastCompletedImageResults: AuditImageResult[] | null;
   modelReady: boolean;
   scanError: string | null;
 
@@ -44,8 +52,11 @@ interface AuditState {
   // Phase 2D: Haiku scan
   haikuScanStatus: 'idle' | 'scanning' | 'done' | 'error';
 
-  // Audit history (sparkline)
-  auditHistory: AuditHistoryEntry[];
+  // Audit history — full audit objects for history list + sparkline
+  auditHistory: FeedAudit[];
+
+  /** True when the user tapped a past audit to review it (not a fresh scan) */
+  isViewingHistory: boolean;
 
   // Core actions
   setAudits: (audits: FeedAudit[]) => void;
@@ -79,6 +90,8 @@ interface AuditState {
 
   // Audit history actions
   fetchAuditHistory: (userId: string) => Promise<void>;
+  viewAudit: (audit: FeedAudit) => Promise<void>;
+  exitHistoryView: () => void;
 
   // Load latest audit from DB (persists across navigation)
   fetchLatestAudit: (userId: string) => Promise<void>;
@@ -95,6 +108,7 @@ export const useAuditStore = create<AuditState>((set) => ({
   screenState: 'input',
   scanProgress: null,
   imageResults: null,
+  lastCompletedImageResults: null,
   modelReady: false,
   scanError: null,
 
@@ -112,6 +126,7 @@ export const useAuditStore = create<AuditState>((set) => ({
 
   // Audit history defaults
   auditHistory: [],
+  isViewingHistory: false,
 
   // Core actions
   setAudits: (audits) => set({ audits }),
@@ -127,10 +142,12 @@ export const useAuditStore = create<AuditState>((set) => ({
   setModelReady: (modelReady) => set({ modelReady }),
   setScanError: (scanError) => set({ scanError }),
   resetScan: () =>
-    set({
+    set((state) => ({
       screenState: 'input',
       scanProgress: null,
+      // Preserve imageResults for the current audit so they survive navigation
       imageResults: null,
+      lastCompletedImageResults: state.imageResults ?? state.lastCompletedImageResults,
       scanError: null,
       scanning: false,
       liveScanState: 'idle',
@@ -138,7 +155,8 @@ export const useAuditStore = create<AuditState>((set) => ({
       frameExtractionProgress: null,
       aiInsights: { status: 'idle', result: null, error: null },
       haikuScanStatus: 'idle',
-    }),
+      isViewingHistory: false,
+    })),
 
   // Phase 2B actions
   setAuditMode: (auditMode) => set({ auditMode }),
@@ -175,21 +193,58 @@ export const useAuditStore = create<AuditState>((set) => ({
     }
   },
 
+  // Exit history view — return to history list without resetting it
+  exitHistoryView: () =>
+    set({
+      screenState: 'input',
+      isViewingHistory: false,
+      aiInsights: { status: 'idle', result: null, error: null },
+    }),
+
+  // View a historical audit from the scan history list
+  viewAudit: async (audit: FeedAudit) => {
+    set({
+      currentAudit: audit,
+      screenState: 'results',
+      isViewingHistory: true,
+      imageResults: null,
+      lastCompletedImageResults: null,
+      aiInsights: { status: 'loading', result: null, error: null },
+      haikuScanStatus: audit.scan_type === 'haiku' ? 'done' : 'idle',
+    });
+
+    // Load persisted AI insights for this audit
+    try {
+      const { data, error } = await supabase
+        .from('ai_insights')
+        .select('insights_json')
+        .eq('audit_id', audit.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (!error && data?.insights_json) {
+        set({ aiInsights: { status: 'success', result: data.insights_json as unknown as AIInsightsResult, error: null } });
+      } else {
+        // No saved insights — just go idle (section will be hidden)
+        set({ aiInsights: { status: 'idle', result: null, error: null } });
+      }
+    } catch {
+      set({ aiInsights: { status: 'idle', result: null, error: null } });
+    }
+  },
+
   // Audit history actions
   fetchAuditHistory: async (userId: string) => {
     const { data, error } = await supabase
       .from('feed_audits')
-      .select('feed_score, created_at')
+      .select('*')
       .eq('user_id', userId)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
       .limit(20);
 
     if (!error && data) {
-      const history: AuditHistoryEntry[] = data.map((row) => ({
-        score: row.feed_score,
-        date: row.created_at,
-      }));
-      set({ auditHistory: history });
+      set({ auditHistory: data as FeedAudit[] });
     }
   },
 }));

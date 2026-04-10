@@ -1,21 +1,22 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, Alert, Platform as RNPlatform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Image, Alert, Platform as RNPlatform, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { PLATFORMS, NSFW_THRESHOLDS, calculateFeedScore } from '@quenchr/shared';
-import type { Platform, FeedAudit, ClassificationResult, AuditImageResult, AIInsightsResult, AIInsightsStatus } from '@quenchr/shared';
-import { createFeedAudit, updateFeedAudit } from '@quenchr/supabase-client';
+import { PLATFORMS } from '@quenchr/shared';
+import type { Platform, FeedAudit, AIInsightsResult, AIInsightsStatus } from '@quenchr/shared';
+import { createFeedAudit } from '@quenchr/supabase-client';
 import { useAuditStore } from '../../src/stores/audit-store';
 import { useAuthStore } from '../../src/stores/auth-store';
 import { useSubscriptionStore } from '../../src/stores/subscription-store';
-import { initializeModel, isModelLoaded, scanImages } from '../../src/services/nsfw-classifier';
-import { selectFlaggedFrames, analyzeWithAI } from '../../src/services/ai-insights';
+import { analyzeWithAI, type FlaggedFrame } from '../../src/services/ai-insights';
 import { scanWithHaiku } from '../../src/services/haiku-scan';
-import type { HaikuScanResult } from '../../src/services/haiku-scan';
+import type { HaikuScanResult, HaikuFrameClassification } from '../../src/services/haiku-scan';
 import { ScanningProgressView } from '../../src/components/ScanningProgressView';
 import { AuditResultsView } from '../../src/components/AuditResultsView';
 import { LiveScanView } from '../../src/components/LiveScanView';
+import { ScanHistoryList } from '../../src/components/ScanHistoryList';
+import { PanicOverlay } from '../../src/components/PanicOverlay';
 import { colors, type as typ, spacing, radius } from '../../src/tokens';
 import {
   PageHeader,
@@ -27,17 +28,15 @@ import {
   Dropzone,
 } from '../../src/components/ui';
 
-// ── Shared Helper ──
+// ── Shared Helper: Haiku-only scan pipeline ──
 
-async function processClassificationResults(
-  imageResults: AuditImageResult[],
-  allClassifications: ClassificationResult[],
-  selectedPlatform: Platform,
+async function runHaikuScan(
   frameUris: string[],
+  selectedPlatform: Platform,
   callbacks: {
-    setImageResults: (results: AuditImageResult[]) => void;
     addAudit: (audit: FeedAudit) => void;
     setScreenState: (state: 'input' | 'scanning' | 'results') => void;
+    setScanProgress: (progress: { phase: 'uploading' | 'analyzing' | 'complete'; percentComplete: number } | null) => void;
     setAIInsightsStatus: (status: AIInsightsStatus) => void;
     setAIInsightsResult: (result: AIInsightsResult | null) => void;
     setAIInsightsError: (error: string | null) => void;
@@ -45,37 +44,45 @@ async function processClassificationResults(
     setCurrentAudit: (audit: FeedAudit | null) => void;
   }
 ) {
-  const { setImageResults, addAudit, setScreenState } = callbacks;
+  // Phase 1: Uploading frames to Haiku
+  callbacks.setScanProgress({ phase: 'uploading', percentComplete: 10 });
+  callbacks.setHaikuScanStatus('scanning');
 
-  const feedScore = calculateFeedScore(allClassifications);
+  // Phase 2: Haiku analysis
+  callbacks.setScanProgress({ phase: 'analyzing', percentComplete: 30 });
 
-  const nsfwCount = allClassifications.filter(
-    (c) => ['porn', 'hentai'].includes(c.category) && c.confidence >= NSFW_THRESHOLDS.suggestive
-  ).length;
-  const sexyCount = allClassifications.filter(
-    (c) => c.category === 'sexy' && c.confidence >= NSFW_THRESHOLDS.suggestive
-  ).length;
-  const neutralCount = allClassifications.length - nsfwCount - sexyCount;
+  const haikuResult = await scanWithHaiku(frameUris, selectedPlatform);
 
-  setImageResults(imageResults);
+  if (haikuResult.total_frames === 0) {
+    throw new Error('AI scan returned no results. Please try again.');
+  }
 
-  const isPro = useSubscriptionStore.getState().isPro();
+  callbacks.setScanProgress({ phase: 'analyzing', percentComplete: 80 });
 
+  // Use overall_score (average suggestive intensity 0-100 across all frames).
+  // suggestive_percent was just a binary frame count that stayed ~18% due to
+  // duplicate/transition frames diluting the ratio.
+  const haikuScore = haikuResult.overall_score;
+  const haikuCounts = haikuResult.category_counts;
+  const totalFrames = haikuResult.total_frames;
+
+  // Persist to DB
   let auditId: string | undefined;
   const userId = useAuthStore.getState().user?.id;
+
   if (userId) {
     const { data } = await createFeedAudit({
       user_id: userId,
       platform: selectedPlatform,
-      total_scanned: allClassifications.length,
-      nsfw_detected: nsfwCount,
-      sexy_detected: sexyCount,
-      neutral_detected: neutralCount,
-      feed_score: feedScore,
-      scan_type: 'nsfwjs',
+      total_scanned: totalFrames,
+      nsfw_detected: haikuCounts.explicit,
+      sexy_detected: haikuCounts.suggestive,
+      neutral_detected: haikuCounts.clean + haikuCounts.mild,
+      feed_score: haikuScore,
+      scan_type: 'haiku',
     });
     if (data) {
-      addAudit(data as FeedAudit);
+      callbacks.addAudit(data as FeedAudit);
       auditId = (data as FeedAudit).id;
     }
   } else {
@@ -83,86 +90,41 @@ async function processClassificationResults(
       id: Date.now().toString(),
       user_id: '',
       platform: selectedPlatform,
-      total_scanned: allClassifications.length,
-      nsfw_detected: nsfwCount,
-      sexy_detected: sexyCount,
-      neutral_detected: neutralCount,
-      feed_score: feedScore,
+      total_scanned: totalFrames,
+      nsfw_detected: haikuCounts.explicit,
+      sexy_detected: haikuCounts.suggestive,
+      neutral_detected: haikuCounts.clean + haikuCounts.mild,
+      feed_score: haikuScore,
+      scan_type: 'haiku',
       created_at: new Date().toISOString(),
     };
-    addAudit(localAudit);
+    callbacks.addAudit(localAudit);
     auditId = localAudit.id;
   }
 
-  setScreenState('results');
+  callbacks.setScanProgress({ phase: 'complete', percentComplete: 100 });
+  callbacks.setHaikuScanStatus('done');
+  callbacks.setScreenState('results');
 
-  // Run Haiku AI scan for Pro users — refines the NSFWJS score
-  if (isPro) {
-    callbacks.setHaikuScanStatus('scanning');
+  // Trigger AI Insights on flagged frames (async, non-blocking)
+  const flaggedClassifications = haikuResult.classifications.filter(
+    (c: HaikuFrameClassification) =>
+      c.category === 'suggestive' || c.category === 'explicit' || c.suggestive_score > 0.3
+  );
 
-    scanWithHaiku(frameUris, selectedPlatform)
-      .then(async (haikuResult: HaikuScanResult) => {
-        // Override with Haiku's more accurate classification
-        const haikuScore = haikuResult.suggestive_percent;
-        const haikuCounts = haikuResult.category_counts;
-        const totalFrames = haikuResult.total_frames;
-        const flaggedCount = haikuCounts.suggestive + haikuCounts.explicit;
-        const cleanCount = haikuCounts.clean + haikuCounts.mild;
+  if (flaggedClassifications.length > 0) {
+    callbacks.setAIInsightsStatus('loading');
 
-        // Update the audit record with Haiku-derived counts
-        const updatedFields = {
-          feed_score: haikuScore,
-          nsfw_detected: haikuCounts.explicit,
-          sexy_detected: haikuCounts.suggestive + haikuCounts.mild,
-          neutral_detected: haikuCounts.clean,
-          total_scanned: totalFrames,
-          scan_type: 'haiku' as const,
-        };
+    const flaggedFrames: FlaggedFrame[] = flaggedClassifications.slice(0, 5).map((f) => ({
+      image_index: f.frame_index,
+      suggestive_percentage: f.suggestive_score * 100,
+    }));
 
-        if (auditId && userId) {
-          const { data: updatedAudit } = await updateFeedAudit(auditId, updatedFields);
-          if (updatedAudit) {
-            callbacks.setCurrentAudit(updatedAudit as FeedAudit);
-          }
-        } else {
-          const currentAudit = useAuditStore.getState().currentAudit;
-          if (currentAudit) {
-            callbacks.setCurrentAudit({
-              ...currentAudit,
-              ...updatedFields,
-            } as FeedAudit);
-          }
-        }
-
-        callbacks.setHaikuScanStatus('done');
-
-        // Also run AI insights on flagged frames
-        const flaggedFrames = selectFlaggedFrames(imageResults);
-        if (flaggedFrames.length > 0) {
-          callbacks.setAIInsightsStatus('loading');
-          analyzeWithAI(flaggedFrames, frameUris, selectedPlatform, haikuScore, auditId)
-            .then((result) => callbacks.setAIInsightsResult(result))
-            .catch((err) => {
-              console.warn('[audit] AI analysis failed:', err);
-              callbacks.setAIInsightsError(err instanceof Error ? err.message : 'AI analysis failed');
-            });
-        }
-      })
+    analyzeWithAI(flaggedFrames, frameUris, selectedPlatform, haikuScore, auditId, true)
+      .then((result) => callbacks.setAIInsightsResult(result))
       .catch((err) => {
-        console.warn('[audit] Haiku scan failed, falling back to NSFWJS results:', err);
-        callbacks.setHaikuScanStatus('error');
-
-        // Fall back: still run AI insights with NSFWJS score
-        const flaggedFrames = selectFlaggedFrames(imageResults);
-        if (flaggedFrames.length > 0) {
-          callbacks.setAIInsightsStatus('loading');
-          analyzeWithAI(flaggedFrames, frameUris, selectedPlatform, feedScore, auditId)
-            .then((result) => callbacks.setAIInsightsResult(result))
-            .catch((aiErr) => {
-              console.warn('[audit] AI analysis failed:', aiErr);
-              callbacks.setAIInsightsError(aiErr instanceof Error ? aiErr.message : 'AI analysis failed');
-            });
-        }
+        console.warn('[audit] AI analysis failed:', err);
+        callbacks.setAIInsightsError(err instanceof Error ? err.message : 'AI analysis failed');
       });
   }
 }
@@ -172,21 +134,24 @@ export default function AuditScreen() {
   const {
     selectedPlatform, setSelectedPlatform,
     scanning, screenState, setScreenState,
-    setScanning, setScanProgress, setImageResults,
-    setModelReady, setScanError, addAudit, resetScan,
+    setScanning, setScanProgress, setScanError,
+    addAudit, resetScan,
     auditMode, setAuditMode,
     setAIInsightsStatus, setAIInsightsResult, setAIInsightsError,
     setHaikuScanStatus, setCurrentAudit,
     currentAudit, fetchLatestAudit,
+    auditHistory, fetchAuditHistory, viewAudit,
   } = useAuditStore();
 
   const user = useAuthStore((s) => s.user);
   const [screenshots, setScreenshots] = useState<string[]>([]);
+  const [panicVisible, setPanicVisible] = useState(false);
 
   // Load the latest audit from DB so results survive navigation
   useEffect(() => {
-    if (user?.id && !currentAudit) {
-      fetchLatestAudit(user.id);
+    if (user?.id) {
+      if (!currentAudit) fetchLatestAudit(user.id);
+      fetchAuditHistory(user.id);
     }
   }, [user?.id]);
 
@@ -199,14 +164,6 @@ export default function AuditScreen() {
         }
       }
     })();
-  }, []);
-
-  useEffect(() => {
-    if (!isModelLoaded()) {
-      initializeModel()
-        .then(() => setModelReady(true))
-        .catch(() => {});
-    }
   }, []);
 
   async function pickImages() {
@@ -226,65 +183,43 @@ export default function AuditScreen() {
       Alert.alert('No screenshots', 'Take some screenshots of your feed first, then select them here.');
       return;
     }
-    setScreenState('scanning');
-    setScanning(true);
-    setScanError(null);
-    try {
-      if (!isModelLoaded()) {
-        setScanProgress({
-          phase: 'initializing', currentImage: 0, totalImages: screenshots.length,
-          currentRegion: 0, totalRegions: screenshots.length * NSFW_THRESHOLDS.gridColumns * NSFW_THRESHOLDS.gridRows,
-          percentComplete: 0,
-        });
-        await initializeModel();
-        setModelReady(true);
-      }
-      const { imageResults, allClassifications } = await scanImages(screenshots, (p) => setScanProgress(p));
-      await processClassificationResults(imageResults, allClassifications, selectedPlatform, screenshots, {
-        setImageResults, addAudit, setScreenState, setAIInsightsStatus, setAIInsightsResult, setAIInsightsError,
-        setHaikuScanStatus, setCurrentAudit,
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Scan failed';
-      setScanError(message);
-      setScreenState('input');
-      Alert.alert('Scan Failed', `Something went wrong: ${message}\n\nPlease try again.`);
-    } finally {
-      setScanning(false);
-    }
+    await startScan(screenshots);
   }
 
   async function handleFramesExtracted(frameUris: string[]) {
+    await startScan(frameUris);
+  }
+
+  async function startScan(frameUris: string[]) {
     setScreenState('scanning');
     setScanning(true);
     setScanError(null);
     try {
-      if (!isModelLoaded()) {
-        setScanProgress({
-          phase: 'initializing', currentImage: 0, totalImages: frameUris.length,
-          currentRegion: 0, totalRegions: frameUris.length * NSFW_THRESHOLDS.gridColumns * NSFW_THRESHOLDS.gridRows,
-          percentComplete: 0,
-        });
-        await initializeModel();
-        setModelReady(true);
-      }
-      const { imageResults, allClassifications } = await scanImages(frameUris, (p) => setScanProgress(p));
-      await processClassificationResults(imageResults, allClassifications, selectedPlatform, frameUris, {
-        setImageResults, addAudit, setScreenState, setAIInsightsStatus, setAIInsightsResult, setAIInsightsError,
+      await runHaikuScan(frameUris, selectedPlatform, {
+        addAudit, setScreenState, setScanProgress,
+        setAIInsightsStatus, setAIInsightsResult, setAIInsightsError,
         setHaikuScanStatus, setCurrentAudit,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Scan failed';
       setScanError(message);
       setScreenState('input');
-      Alert.alert('Scan Failed', `Something went wrong: ${message}\n\nPlease try again.`);
+      // Quota / subscription errors → paywall instead of generic alert
+      const isQuotaError = message.toLowerCase().includes('free tier') ||
+        message.toLowerCase().includes('upgrade to pro') ||
+        message.toLowerCase().includes('1 ai-powered scan');
+      if (isQuotaError) {
+        router.push('/paywall');
+      } else {
+        Alert.alert('Scan Failed', `Something went wrong: ${message}\n\nPlease try again.`);
+      }
     } finally {
       setScanning(false);
     }
   }
 
   function handleNewAudit() { resetScan(); setScreenshots([]); }
-  function handleStartCleanup() { resetScan(); router.push('/(tabs)/cleanup'); }
+  function handleStartCleanup() { router.push('/(tabs)/cleanup'); }
 
   if (screenState === 'scanning') return <ScanningProgressView />;
   if (screenState === 'results') return <AuditResultsView onNewAudit={handleNewAudit} onStartCleanup={handleStartCleanup} />;
@@ -292,7 +227,8 @@ export default function AuditScreen() {
   const pageName = selectedPlatform === 'instagram' ? 'Explore page' : 'For You Page';
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <View style={styles.safe}>
+      <SafeAreaView style={styles.safeInner} edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <PageHeader
           eyebrow="Forensics"
@@ -311,7 +247,7 @@ export default function AuditScreen() {
             selected={selectedPlatform}
             onSelect={(platform) => {
               // Gate 2nd platform behind Pro
-              const isPro = useSubscriptionStore.getState().isPro();
+              const isPro = useSubscriptionStore.getState().proAccess;
               if (platform !== selectedPlatform && !isPro) {
                 // Allow the first platform they pick, gate subsequent switches
                 const audits = useAuditStore.getState().audits;
@@ -378,14 +314,28 @@ export default function AuditScreen() {
               />
             </>
           )}
+
+          {/* Scan history */}
+          {auditHistory.length > 0 && (
+            <ScanHistoryList audits={auditHistory} onSelect={viewAudit} />
+          )}
         </View>
       </ScrollView>
-    </SafeAreaView>
+      </SafeAreaView>
+
+      {/* Panic FAB */}
+      <TouchableOpacity style={styles.fab} onPress={() => setPanicVisible(true)} activeOpacity={0.85}>
+        <Text style={styles.fabIcon}>🛑</Text>
+      </TouchableOpacity>
+
+      <PanicOverlay visible={panicVisible} onDismiss={() => setPanicVisible(false)} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.cream },
+  safeInner: { flex: 1 },
   scroll: { paddingBottom: 100 },
   body: { paddingHorizontal: spacing.pagePad, gap: 12 },
   cardTitle: {
@@ -397,4 +347,23 @@ const styles = StyleSheet.create({
   step: { ...typ.body, color: colors.ink2 },
   previewRow: { flexDirection: 'row' },
   previewImage: { width: 90, height: 160, borderRadius: radius.pill, marginRight: 8 },
+  fab: {
+    position: 'absolute',
+    bottom: 100,
+    right: 20,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: colors.brown,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  fabIcon: {
+    fontSize: 22,
+  },
 });

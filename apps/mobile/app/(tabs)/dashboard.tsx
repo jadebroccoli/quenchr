@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../src/stores/auth-store';
@@ -17,9 +17,13 @@ import {
   ScoreRing,
   ScoreHistory,
 } from '../../src/components/ui';
+import { OasisVisual } from '../../src/components/ui/OasisVisual';
+import { PanicOverlay } from '../../src/components/PanicOverlay';
 
 export default function DashboardScreen() {
   const router = useRouter();
+  const [panicVisible, setPanicVisible] = useState(false);
+  const [oasisInfoVisible, setOasisInfoVisible] = useState(false);
   const user = useAuthStore((s) => s.user);
   const currentAudit = useAuditStore((s) => s.currentAudit);
   const auditHistory = useAuditStore((s) => s.auditHistory);
@@ -65,7 +69,7 @@ export default function DashboardScreen() {
                   {feedHealth.label} — {breakdown.suggestivePercent}% suggestive content detected
                 </Text>
                 {auditHistory.length > 0 && (
-                  <ScoreHistory data={auditHistory} />
+                  <ScoreHistory data={[...auditHistory].reverse().map((a) => ({ score: a.feed_score, date: a.created_at }))} />
                 )}
                 <PrimaryButton
                   label="Start Cleanup Session"
@@ -89,7 +93,17 @@ export default function DashboardScreen() {
 
           {/* Streak Card */}
           <CardDark>
-            <Text style={styles.eyebrowDark}>STREAK</Text>
+            <View style={styles.streakHeader}>
+              <Text style={styles.eyebrowDark}>STREAK</Text>
+              <TouchableOpacity onPress={() => setOasisInfoVisible(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <View style={styles.infoBtn}>
+                  <Text style={styles.infoBtnText}>?</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.oasisWrapper}>
+              <OasisVisual currentStreak={streak?.current_streak ?? 0} size={200} />
+            </View>
             <StatRow
               items={[
                 { value: streak?.current_streak ?? 0, label: 'Current' },
@@ -97,6 +111,15 @@ export default function DashboardScreen() {
                 { value: streak?.total_points ?? 0, label: 'Points', gold: true },
               ]}
             />
+          </CardDark>
+
+          {/* Panic Button Card */}
+          <CardDark>
+            <Text style={styles.panicHeadline}>Caught mid-scroll?</Text>
+            <Text style={styles.panicSub}>Tap to pause and reset.</Text>
+            <TouchableOpacity style={styles.panicBtn} onPress={() => setPanicVisible(true)} activeOpacity={0.85}>
+              <Text style={styles.panicBtnText}>Stop Scrolling</Text>
+            </TouchableOpacity>
           </CardDark>
 
           {/* Today's Progress */}
@@ -115,6 +138,20 @@ export default function DashboardScreen() {
           </CardLight>
         </View>
       </ScrollView>
+
+      <PanicOverlay visible={panicVisible} onDismiss={() => setPanicVisible(false)} />
+
+      <Modal visible={oasisInfoVisible} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setOasisInfoVisible(false)}>
+        <TouchableOpacity style={styles.infoOverlay} activeOpacity={1} onPress={() => setOasisInfoVisible(false)}>
+          <View style={styles.infoCard}>
+            <Text style={styles.infoTitle}>Your Oasis</Text>
+            <Text style={styles.infoBody}>
+              It's a little bare right now, but the longer you keep up your streak, the more it grows and begins to fill with water.
+            </Text>
+            <Text style={styles.infoWip}>🎨 Art is currently WIP</Text>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -141,7 +178,6 @@ const styles = StyleSheet.create({
   eyebrowDark: {
     ...typ.label,
     color: colors.lt3,
-    marginBottom: 10,
   },
 
   // Score
@@ -160,6 +196,89 @@ const styles = StyleSheet.create({
     color: colors.ink3,
     textAlign: 'center',
     marginTop: 10,
+  },
+
+  // Streak header row
+  streakHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  infoBtn: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderColor: colors.lt3,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  infoBtnText: {
+    fontSize: 10,
+    color: colors.lt3,
+    fontWeight: '700',
+    lineHeight: 13,
+  },
+
+  // Oasis info modal
+  infoOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+  },
+  infoCard: {
+    backgroundColor: colors.ink,
+    borderRadius: radius.card,
+    padding: 24,
+    width: '100%',
+  },
+  infoTitle: {
+    fontFamily: 'DMSerifDisplay_400Regular',
+    fontSize: 22,
+    color: colors.lt,
+    marginBottom: 12,
+  },
+  infoBody: {
+    ...typ.body,
+    color: colors.lt3,
+    lineHeight: 22,
+    marginBottom: 16,
+  },
+  infoWip: {
+    ...typ.caption,
+    color: colors.ink4,
+  },
+
+  // Oasis
+  oasisWrapper: {
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+
+  // Panic card
+  panicHeadline: {
+    fontFamily: 'DMSerifDisplay_400Regular',
+    fontSize: 22,
+    color: colors.lt,
+    marginBottom: 6,
+  },
+  panicSub: {
+    ...typ.body,
+    color: colors.lt3,
+    marginBottom: 20,
+  },
+  panicBtn: {
+    backgroundColor: colors.brown,
+    borderRadius: radius.btn,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  panicBtnText: {
+    ...typ.btn,
+    color: colors.lt,
   },
 
   // Mini grid (Today's Progress)

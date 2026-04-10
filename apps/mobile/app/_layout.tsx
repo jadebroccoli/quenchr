@@ -21,6 +21,8 @@ import {
   DMSans_700Bold,
 } from '@expo-google-fonts/dm-sans';
 import { useAuthStore } from '../src/stores/auth-store';
+import { useSubscriptionStore } from '../src/stores/subscription-store';
+import { useSettingsStore } from '../src/stores/settings-store';
 import { supabase } from '@quenchr/supabase-client';
 import { colors } from '../src/tokens';
 
@@ -28,6 +30,9 @@ export default function RootLayout() {
   const setSession = useAuthStore((s) => s.setSession);
   const setUser = useAuthStore((s) => s.setUser);
   const setLoading = useAuthStore((s) => s.setLoading);
+  const setTier = useSubscriptionStore((s) => s.setTier);
+  const loadTrialState = useSubscriptionStore((s) => s.loadTrialState);
+  const loadSettings = useSettingsStore((s) => s.loadSettings);
 
   const [fontsLoaded] = useFonts({
     DMSerifDisplay_400Regular,
@@ -75,9 +80,18 @@ export default function RootLayout() {
   }, []);
 
   async function loadUser(userId: string) {
+    loadSettings();
+    loadTrialState();
     const { data } = await supabase.from('users').select('*').eq('id', userId).single();
     if (data) {
       setUser(data as any);
+      // Sync subscription tier from DB — DB is source of truth for pro/free,
+      // but trial state is managed locally (AsyncStorage) so only override if not already in trial
+      if (data.subscription_tier === 'pro') {
+        setTier('pro');
+      } else if (data.subscription_tier === 'free' && useSubscriptionStore.getState().tier !== 'trial') {
+        setTier('free');
+      }
     }
   }
 

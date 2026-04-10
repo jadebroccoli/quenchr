@@ -12,3 +12,4 @@ export { Dropzone } from './Dropzone';
 export { AuditBanner } from './AuditBanner';
 export { QuenchrLogo } from './QuenchrLogo';
 export { ScoreHistory } from './ScoreHistory';
+export { ScoreSparkline } from './ScoreSparkline';
