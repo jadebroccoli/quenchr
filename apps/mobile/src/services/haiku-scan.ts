@@ -42,14 +42,21 @@ export interface HaikuScanResult {
  * sends them to the `haiku-scan` Supabase Edge Function, and returns
  * per-frame classifications with an overall score.
  */
+/** Max frames to send to the edge function (matches server limit of 30) */
+const MAX_FRAMES = 20;
+
 export async function scanWithHaiku(
   frameUris: string[],
   platform: Platform,
 ): Promise<HaikuScanResult> {
-  // Convert all frames to base64 in parallel
+  // Sample frames evenly if we have more than MAX_FRAMES
+  // Live scan can extract hundreds of frames — we pick representative ones
+  const sampled = sampleFrames(frameUris, MAX_FRAMES);
+
+  // Convert sampled frames to base64 in parallel
   const frames = await Promise.all(
-    frameUris.map(async (uri, index) => ({
-      frame_index: index,
+    sampled.map(async ({ uri, originalIndex }) => ({
+      frame_index: originalIndex,
       image_base64: await imageUriToBase64(uri),
     })),
   );
@@ -66,7 +73,18 @@ export async function scanWithHaiku(
   });
 
   if (error) {
-    throw new Error(`Haiku scan failed: ${error.message}`);
+    // Supabase wraps non-2xx responses as FunctionsHttpError.
+    // error.message is always the generic "Edge Function returned a non-2xx
+    // status code" — we need to unwrap the actual body to get our error string
+    // (e.g. "Free tier: 1 AI-powered scan per week") so quota checks work.
+    let message = error.message;
+    try {
+      const body = await (error as any).context?.json?.();
+      if (body?.error) message = body.error;
+    } catch {
+      // If body parse fails, fall back to generic message
+    }
+    throw new Error(message);
   }
 
   if (!data?.success) {
@@ -77,6 +95,26 @@ export async function scanWithHaiku(
 }
 
 // ── Internal Helpers ──
+
+/**
+ * Evenly sample up to `max` frames from the full list.
+ * Preserves original indices so Haiku results map back correctly.
+ */
+function sampleFrames(
+  uris: string[],
+  max: number,
+): { uri: string; originalIndex: number }[] {
+  if (uris.length <= max) {
+    return uris.map((uri, i) => ({ uri, originalIndex: i }));
+  }
+  const step = uris.length / max;
+  const sampled: { uri: string; originalIndex: number }[] = [];
+  for (let i = 0; i < max; i++) {
+    const idx = Math.floor(i * step);
+    sampled.push({ uri: uris[idx], originalIndex: idx });
+  }
+  return sampled;
+}
 
 /**
  * Convert a local image URI to a compressed base64 JPEG string.
