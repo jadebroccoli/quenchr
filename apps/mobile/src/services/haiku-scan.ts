@@ -75,15 +75,19 @@ export async function scanWithHaiku(
   if (error) {
     // Supabase wraps non-2xx responses as FunctionsHttpError.
     // error.message is always the generic "Edge Function returned a non-2xx
-    // status code" — we need to unwrap the actual body to get our error string
+    // status code" — unwrap the actual body to get our real error string
     // (e.g. "Free tier: 1 AI-powered scan per week") so quota checks work.
     let message = error.message;
+    let status: number | undefined;
     try {
-      const body = await (error as any).context?.json?.();
+      const ctx = (error as any).context;
+      status = ctx?.status;
+      const body = await ctx?.json?.();
       if (body?.error) message = body.error;
     } catch {
       // If body parse fails, fall back to generic message
     }
+    console.error('[haiku-scan] invoke error:', status, message);
     throw new Error(message);
   }
 
