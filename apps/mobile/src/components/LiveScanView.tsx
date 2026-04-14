@@ -121,10 +121,16 @@ export function LiveScanView({ platform, onFramesExtracted, onCancel }: Props) {
       const videoUri = await stopScreenRecording();
 
       setLiveScanState('extracting_frames');
+      // Spread 30 frames evenly across the full recording duration.
+      // e.g. 3 min recording → 1 frame every 6 seconds instead of fixed 2s
+      // which would only cover the first 60 seconds.
+      const MAX_LIVE_FRAMES = 30;
+      const durationMs = Math.max(recordingDurationSeconds * 1000, 1000);
+      const intervalMs = Math.max(1000, Math.floor(durationMs / MAX_LIVE_FRAMES));
       const frameUris = await extractFrames(
         videoUri,
-        2000,
-        30,
+        intervalMs,
+        MAX_LIVE_FRAMES,
         (progress) => setFrameExtractionProgress({ current: progress.currentFrame, total: progress.totalFrames })
       );
 
