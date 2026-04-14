@@ -74,9 +74,8 @@ export async function scanWithHaiku(
 
   if (error) {
     // Supabase wraps non-2xx responses as FunctionsHttpError.
-    // error.message is always the generic "Edge Function returned a non-2xx
-    // status code" — unwrap the actual body to get our real error string
-    // (e.g. "Free tier: 1 AI-powered scan per week") so quota checks work.
+    // Unwrap the body to get the real error; fall back to status-specific
+    // human-readable messages so the alert is actually useful.
     let message = error.message;
     let status: number | undefined;
     try {
@@ -84,9 +83,20 @@ export async function scanWithHaiku(
       status = ctx?.status;
       const body = await ctx?.json?.();
       if (body?.error) message = body.error;
+      else if (body?.message) message = body.message;
     } catch {
-      // If body parse fails, fall back to generic message
+      // body parse failed — fall through to status-based message
     }
+
+    // Map gateway-level errors to readable messages
+    if (status === 401 || message.toLowerCase().includes('jwt') || message.toLowerCase().includes('invalid') ) {
+      message = 'Session expired. Please log out and log back in, then try again.';
+    } else if (status === 403 && !message.toLowerCase().includes('free tier')) {
+      message = 'Access denied. Please check your subscription status.';
+    } else if (status === 502 || status === 503 || status === 504) {
+      message = 'AI service temporarily unavailable. Please try again in a moment.';
+    }
+
     console.error('[haiku-scan] invoke error:', status, message);
     throw new Error(message);
   }
