@@ -61,45 +61,29 @@ export async function scanWithHaiku(
     })),
   );
 
-  // Pre-flight: confirm session exists and log diagnostics
-  const { data: sessionData } = await supabase.auth.getSession();
-  const session = sessionData?.session;
-  console.log('[haiku-scan] session present:', !!session, '| user:', session?.user?.id?.slice(0, 8));
-
-  // Call the Supabase Edge Function
+  // Ensure session is fresh before calling edge function.
+  // getSession() can return null right after login if AsyncStorage hasn't
+  // hydrated yet — refreshSession() forces a network round-trip that always
+  // returns a valid token if the user is logged in.
   const devMode = useSettingsStore.getState().devMode;
 
-  // Raw fetch fallback so we can see the actual HTTP status + body
-  // regardless of how the Supabase client wraps the error.
-  const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
-  const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
-  console.log('[haiku-scan] supabase url set:', supabaseUrl.length > 0, '| anon key set:', anonKey.length > 0);
+  let { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData?.session) {
+    console.log('[haiku-scan] no session from getSession, attempting refresh...');
+    const { data: refreshed } = await supabase.auth.refreshSession();
+    sessionData = refreshed;
+  }
+  console.log('[haiku-scan] session present:', !!sessionData?.session, '| user:', sessionData?.session?.user?.id?.slice(0, 8));
 
-  const rawRes = await fetch(`${supabaseUrl}/functions/v1/${FUNCTION_NAME}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${session?.access_token ?? anonKey}`,
-      'apikey': anonKey,
-      ...(devMode ? { 'x-quenchr-dev-mode': 'true' } : {}),
-    },
-    body: JSON.stringify({ frames, platform, mode: 'full' }),
-  });
-
-  console.log('[haiku-scan] raw fetch status:', rawRes.status);
-  const rawBody = await rawRes.json().catch(() => ({}));
-  console.log('[haiku-scan] raw fetch body:', JSON.stringify(rawBody).slice(0, 200));
-
-  if (!rawRes.ok) {
-    const msg = rawBody?.error ?? rawBody?.message ?? `HTTP ${rawRes.status}`;
-    if (rawRes.status === 401) throw new Error('Session expired. Please log out and log back in, then try again.');
-    if (rawRes.status === 403) throw new Error(msg);
-    if (rawRes.status >= 500) throw new Error('AI service temporarily unavailable. Please try again in a moment.');
-    throw new Error(msg);
+  if (!sessionData?.session) {
+    throw new Error('Session expired. Please log out and log back in, then try again.');
   }
 
-  const data = rawBody;
-  const error = null;
+  // Use functions.invoke (handles auth automatically via the Supabase client)
+  const { data, error } = await supabase.functions.invoke(FUNCTION_NAME, {
+    body: { frames, platform, mode: 'full' as const },
+    headers: devMode ? { 'x-quenchr-dev-mode': 'true' } : undefined,
+  });
 
   if (error) {
     // Supabase wraps non-2xx responses as FunctionsHttpError.
