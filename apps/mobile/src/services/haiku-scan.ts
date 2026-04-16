@@ -64,67 +64,108 @@ export async function scanWithHaiku(
 
   const devMode = useSettingsStore.getState().devMode;
 
-  // Read the access token directly from Zustand — _layout.tsx stores it there
-  // via setSession() on both initial load and every auth state change.
-  // This bypasses the AsyncStorage hydration race where supabase.auth.getSession()
-  // can return null for several seconds after login on Android.
-  let accessToken = useAuthStore.getState().session?.access_token;
+  // ── Token acquisition with detailed diagnostics ──
+  // Previous attempts using supabase.functions.invoke exhibited persistent
+  // "Session expired" 401s across multiple builds. To rule out any
+  // supabase-js header-manipulation bug we're dropping functions.invoke
+  // in favor of raw fetch + loud diagnostic logs so we can actually see
+  // where the failure is happening in device console.
+  const storeToken = useAuthStore.getState().session?.access_token;
+  let accessToken: string | undefined = storeToken;
+  let tokenSource: 'store' | 'refresh' | 'getSession' | 'none' = storeToken ? 'store' : 'none';
 
   if (!accessToken) {
-    // Fallback: try a network refresh in case the store hasn't populated yet
-    console.log('[haiku-scan] no token in store, attempting session refresh...');
-    const { data: refreshed } = await supabase.auth.refreshSession();
-    accessToken = refreshed?.session?.access_token ?? undefined;
+    console.log('[haiku-scan] no token in Zustand, trying refreshSession()...');
+    try {
+      const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession();
+      if (refreshErr) console.warn('[haiku-scan] refreshSession error:', refreshErr.message);
+      accessToken = refreshed?.session?.access_token ?? undefined;
+      if (accessToken) tokenSource = 'refresh';
+    } catch (e) {
+      console.warn('[haiku-scan] refreshSession threw:', e);
+    }
   }
-
-  console.log('[haiku-scan] access token present:', !!accessToken);
 
   if (!accessToken) {
-    throw new Error('Session expired. Please log out and log back in, then try again.');
+    console.log('[haiku-scan] refresh failed, trying getSession()...');
+    try {
+      const { data: s } = await supabase.auth.getSession();
+      accessToken = s?.session?.access_token ?? undefined;
+      if (accessToken) tokenSource = 'getSession';
+    } catch (e) {
+      console.warn('[haiku-scan] getSession threw:', e);
+    }
   }
 
-  const { data, error } = await supabase.functions.invoke(FUNCTION_NAME, {
-    body: { frames, platform, mode: 'full' as const },
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      ...(devMode ? { 'x-quenchr-dev-mode': 'true' } : {}),
-    },
+  console.log('[haiku-scan] token acquired:', {
+    present: !!accessToken,
+    source: tokenSource,
+    prefix: accessToken ? accessToken.slice(0, 16) + '...' : null,
+    length: accessToken?.length,
   });
 
-  if (error) {
-    // Supabase wraps non-2xx responses as FunctionsHttpError.
-    // Unwrap the body to get the real error; fall back to status-specific
-    // human-readable messages so the alert is actually useful.
-    let message = error.message;
-    let status: number | undefined;
-    try {
-      const ctx = (error as any).context;
-      status = ctx?.status;
-      const body = await ctx?.json?.();
-      if (body?.error) message = body.error;
-      else if (body?.message) message = body.message;
-    } catch {
-      // body parse failed — fall through to status-based message
-    }
-
-    // Map gateway-level errors to readable messages
-    if (status === 401 || message.toLowerCase().includes('jwt') || message.toLowerCase().includes('invalid') ) {
-      message = 'Session expired. Please log out and log back in, then try again.';
-    } else if (status === 403 && !message.toLowerCase().includes('free tier')) {
-      message = 'Access denied. Please check your subscription status.';
-    } else if (status === 502 || status === 503 || status === 504) {
-      message = 'AI service temporarily unavailable. Please try again in a moment.';
-    }
-
-    console.error('[haiku-scan] invoke error:', status, message);
-    throw new Error(message);
+  if (!accessToken) {
+    throw new Error('Session expired [no-token]. Please log out and log back in, then try again.');
   }
 
-  if (!data?.success) {
-    throw new Error(data?.error ?? 'Unknown Haiku scan error');
+  // ── Raw fetch to edge function ──
+  // Bypasses supabase.functions.invoke / fetchWithAuth entirely.
+  // We own the headers 100%.
+  const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
+  const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
+  const url = `${supabaseUrl.replace(/\/$/, '')}/functions/v1/${FUNCTION_NAME}`;
+
+  console.log('[haiku-scan] POSTing to', url, '| frames:', frames.length, '| devMode:', devMode);
+
+  const requestHeaders: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${accessToken}`,
+    'apikey': anonKey,
+  };
+  if (devMode) requestHeaders['x-quenchr-dev-mode'] = 'true';
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: requestHeaders,
+      body: JSON.stringify({ frames, platform, mode: 'full' }),
+    });
+  } catch (fetchErr: any) {
+    console.error('[haiku-scan] fetch threw:', fetchErr?.message || fetchErr);
+    throw new Error('Network error. Check your connection and try again.');
   }
 
-  return data.data as HaikuScanResult;
+  const status = response.status;
+  const rawBody = await response.text();
+  console.log('[haiku-scan] response:', status, '| body preview:', rawBody.slice(0, 200));
+
+  let body: any = null;
+  try { body = JSON.parse(rawBody); } catch { /* not json */ }
+
+  if (!response.ok) {
+    // Surface the actual server error for diagnostics instead of a generic fallback.
+    const serverMsg: string = body?.error || body?.message || rawBody || `HTTP ${status}`;
+    console.error('[haiku-scan] edge function error:', { status, serverMsg });
+
+    if (status === 401) {
+      // Tagged so we can tell it came from the server, not the client-side no-token branch.
+      throw new Error(`Session expired [401 from edge: ${serverMsg.slice(0, 80)}]. Please log out and log back in, then try again.`);
+    }
+    if (status === 403 && !serverMsg.toLowerCase().includes('free tier')) {
+      throw new Error('Access denied. Please check your subscription status.');
+    }
+    if (status >= 500) {
+      throw new Error('AI service temporarily unavailable. Please try again in a moment.');
+    }
+    throw new Error(serverMsg);
+  }
+
+  if (!body?.success) {
+    throw new Error(body?.error ?? 'Unknown Haiku scan error');
+  }
+
+  return body.data as HaikuScanResult;
 }
 
 // ── Internal Helpers ──
