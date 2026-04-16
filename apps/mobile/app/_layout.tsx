@@ -56,17 +56,24 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    // Check initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setSession({ access_token: session.access_token });
-        loadUser(session.user.id);
-      }
-      setLoading(false);
-    });
+    // We rely solely on onAuthStateChange for session hydration.
+    // INITIAL_SESSION fires once AsyncStorage has fully resolved — only then
+    // do we mark loading=false so the app is never interactive with an empty
+    // auth store (the root cause of "Session expired" on first scan).
+    let initialSessionHandled = false;
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    // Safety valve: if INITIAL_SESSION never fires (edge case), unblock after 5s
+    const timeout = setTimeout(() => {
+      if (!initialSessionHandled) {
+        console.warn('[layout] INITIAL_SESSION timeout — unblocking app');
+        setLoading(false);
+      }
+    }, 5000);
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Update session/user FIRST, then flip loading off. Guarantees no subscriber
+      // can observe { loading: false, session: null } during INITIAL_SESSION with
+      // a valid session (React 18 batches these anyway, but explicit > implicit).
       if (session) {
         setSession({ access_token: session.access_token });
         loadUser(session.user.id);
@@ -74,9 +81,18 @@ export default function RootLayout() {
         setSession(null);
         setUser(null);
       }
+
+      if (event === 'INITIAL_SESSION') {
+        initialSessionHandled = true;
+        clearTimeout(timeout);
+        setLoading(false);
+      }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeout);
+    };
   }, []);
 
   async function loadUser(userId: string) {
@@ -95,7 +111,10 @@ export default function RootLayout() {
     }
   }
 
-  if (!fontsLoaded) {
+  // Block rendering until BOTH fonts AND auth session are ready.
+  // This ensures useAuthStore always has the token before any screen mounts.
+  const authLoading = useAuthStore((s) => s.loading);
+  if (!fontsLoaded || authLoading) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator color={colors.brown} size="large" />

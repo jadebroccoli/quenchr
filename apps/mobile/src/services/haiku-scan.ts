@@ -3,6 +3,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { supabase } from '@quenchr/supabase-client';
 import type { Platform } from '@quenchr/shared';
 import { useSettingsStore } from '../stores/settings-store';
+import { useAuthStore } from '../stores/auth-store';
 
 // ── Constants ──
 
@@ -61,28 +62,33 @@ export async function scanWithHaiku(
     })),
   );
 
-  // Ensure session is fresh before calling edge function.
-  // getSession() can return null right after login if AsyncStorage hasn't
-  // hydrated yet — refreshSession() forces a network round-trip that always
-  // returns a valid token if the user is logged in.
   const devMode = useSettingsStore.getState().devMode;
 
-  let { data: sessionData } = await supabase.auth.getSession();
-  if (!sessionData?.session) {
-    console.log('[haiku-scan] no session from getSession, attempting refresh...');
-    const { data: refreshed } = await supabase.auth.refreshSession();
-    sessionData = refreshed;
-  }
-  console.log('[haiku-scan] session present:', !!sessionData?.session, '| user:', sessionData?.session?.user?.id?.slice(0, 8));
+  // Read the access token directly from Zustand — _layout.tsx stores it there
+  // via setSession() on both initial load and every auth state change.
+  // This bypasses the AsyncStorage hydration race where supabase.auth.getSession()
+  // can return null for several seconds after login on Android.
+  let accessToken = useAuthStore.getState().session?.access_token;
 
-  if (!sessionData?.session) {
+  if (!accessToken) {
+    // Fallback: try a network refresh in case the store hasn't populated yet
+    console.log('[haiku-scan] no token in store, attempting session refresh...');
+    const { data: refreshed } = await supabase.auth.refreshSession();
+    accessToken = refreshed?.session?.access_token ?? undefined;
+  }
+
+  console.log('[haiku-scan] access token present:', !!accessToken);
+
+  if (!accessToken) {
     throw new Error('Session expired. Please log out and log back in, then try again.');
   }
 
-  // Use functions.invoke (handles auth automatically via the Supabase client)
   const { data, error } = await supabase.functions.invoke(FUNCTION_NAME, {
     body: { frames, platform, mode: 'full' as const },
-    headers: devMode ? { 'x-quenchr-dev-mode': 'true' } : undefined,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      ...(devMode ? { 'x-quenchr-dev-mode': 'true' } : {}),
+    },
   });
 
   if (error) {
