@@ -1,0 +1,14 @@
+project_id = "quenchr"
+
+[functions.haiku-scan]
+# verify_jwt disabled: our function does manual JWT validation via
+# supabase.auth.getUser(token) using the service role key, which works
+# across all token algorithms (HS256 legacy and ES256/RS256 new signing
+# keys). Gateway-level verify_jwt was rejecting tokens with
+# UNAUTHORIZED_UNSUPPORTED_TOKEN_ALGORITHM after the project migrated
+# to the sb_publishable_* key format.
+verify_jwt = false
+
+[functions.ai-feed-analysis]
+# Same reasoning — manual validation happens inside the function.
+verify_jwt = false

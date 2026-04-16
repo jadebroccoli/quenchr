@@ -37,7 +37,7 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 function corsHeaders() {
   return {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-quenchr-dev-mode',
   };
 }
 
@@ -65,12 +65,13 @@ For EACH frame, respond with:
 - description: one short sentence describing what's in the frame
 
 SCORING GUIDE:
-- 0-15: No suggestive elements. News, memes, food, pets, landscapes, text posts, normal clothed people
-- 16-35: Mildly suggestive. Tight clothing, minor skin showing, fitness content, beach photos in context
-- 36-65: Clearly suggestive. Thirst traps, provocative poses, suggestive captions, OF promos, lingerie
-- 66-100: Highly explicit. Near-nudity, extremely provocative content, sexual content
+- 0-15: Completely clean. News, memes, food, pets, landscapes, text posts, fully-clothed people in neutral poses
+- 16-35: Mildly suggestive. Tight gym clothing, minor skin showing, standard fitness content, beach group photos
+- 36-65: Clearly suggestive. Thirst traps, provocative poses, suggestive captions, OF promos, lingerie, bikini close-ups, shirtless body-focused shots
+- 66-100: Highly explicit. Near-nudity, extremely provocative content, sexual content, exposed intimate areas
 
-Be STRICT — the whole point of this app is to flag content users wouldn't want their mom seeing. When in doubt, score higher.
+Be STRICT. This app exists to flag content users are trying to escape. Default to scoring HIGHER when uncertain.
+A woman in a bikini posing for the camera = at least 45. A shirtless man flexing = at least 40. Lingerie = at least 60. OF promo = at least 70.
 
 Respond with ONLY a JSON array of objects. No markdown, no explanation:
 [{"frame_index": 0, "suggestive_score": 25, "category": "mild", "content_type": "fitness", "description": "Woman doing squats at gym"}, ...]`;
@@ -103,26 +104,31 @@ serve(async (req: Request) => {
 
     if (!devMode) {
       // Check if user is Pro or has free scans remaining
-      const { data: userData } = await supabase
+      const { data: userData, error: userError } = await supabase
         .from('users')
         .select('subscription_tier')
         .eq('id', user.id)
         .single();
 
-      const isPro = userData?.subscription_tier === 'pro';
+      if (userError) {
+        console.error('[haiku-scan] User lookup error:', userError);
+        // Don't hard-block on DB lookup failure
+      } else {
+        const isPro = userData?.subscription_tier === 'pro' || userData?.subscription_tier === 'trial';
 
-      if (!isPro) {
-        // Check weekly Haiku scan count
-        const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-        const { count } = await supabase
-          .from('feed_audits')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id)
-          .eq('scan_type', 'haiku')
-          .gte('created_at', oneWeekAgo);
+        if (!isPro) {
+          // Check weekly Haiku scan count
+          const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+          const { count } = await supabase
+            .from('feed_audits')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', user.id)
+            .eq('scan_type', 'haiku')
+            .gte('created_at', oneWeekAgo);
 
-        if ((count ?? 0) >= 1) {
-          return errorResponse(403, 'Free tier: 1 AI-powered scan per week. Upgrade to Pro for unlimited scans.');
+          if ((count ?? 0) >= 1) {
+            return errorResponse(403, 'Free tier: 1 AI-powered scan per week. Upgrade to Pro for unlimited scans.');
+          }
         }
       }
     }
@@ -164,7 +170,7 @@ serve(async (req: Request) => {
         headers: {
           'Content-Type': 'application/json',
           'x-api-key': ANTHROPIC_API_KEY,
-          'anthropic-version': '2024-10-22',
+          'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
           model: 'claude-haiku-4-5-20251001',
@@ -204,10 +210,36 @@ serve(async (req: Request) => {
       }
     }
 
-    // 5. Calculate overall score
-    const totalScore = allClassifications.length > 0
-      ? Math.round(allClassifications.reduce((sum, c) => sum + c.suggestive_score, 0) / allClassifications.length)
-      : 0;
+    // 5. If all batches failed, return an error instead of zeros
+    if (allClassifications.length === 0) {
+      return errorResponse(502, 'All classification batches failed. Check Anthropic API key and request format.');
+    }
+
+    // ── Normalize score/category consistency ──
+    // Haiku frequently assigns category='suggestive' while giving
+    // suggestive_score=~10, which contradicts the prompt's defined ranges
+    // and drags the feed score unrealistically low. We trust the category
+    // judgment and clamp the numeric score into the band that category
+    // represents. The clamped score is what gets used for all downstream
+    // math AND what we return to the client.
+    const categoryBands: Record<string, [number, number]> = {
+      clean: [0, 15],
+      mild: [16, 35],
+      suggestive: [36, 65],
+      explicit: [66, 100],
+    };
+    for (const c of allClassifications) {
+      const band = categoryBands[c.category];
+      if (band) {
+        const [floor, ceil] = band;
+        const original = c.suggestive_score;
+        const clamped = Math.max(floor, Math.min(ceil, original));
+        if (clamped !== original) {
+          (c as any)._raw_score = original;
+          c.suggestive_score = clamped;
+        }
+      }
+    }
 
     // Count categories
     const categoryCounts = {
@@ -216,6 +248,49 @@ serve(async (req: Request) => {
       suggestive: allClassifications.filter(c => c.category === 'suggestive').length,
       explicit: allClassifications.filter(c => c.category === 'explicit').length,
     };
+
+    // Calculate feed score.
+    // We ignore "mild" from the flagged intensity pool — mild frames are
+    // background noise (gym content, beachwear). Only suggestive/explicit
+    // frames drive the score up meaningfully.
+    // Formula: 30% mild-inclusive prevalence + 70% suggestive/explicit intensity
+    const hardFlagged = allClassifications.filter(
+      c => c.category === 'suggestive' || c.category === 'explicit'
+    );
+    const softFlagged = allClassifications.filter(c => c.category === 'mild');
+    const prevalence = allClassifications.length > 0
+      ? ((categoryCounts.suggestive + categoryCounts.explicit) / allClassifications.length) * 100
+      : 0;
+    // Mild adds a small bump to prevalence so a feed with lots of mild content
+    // still scores noticeably above 0
+    const mildBump = allClassifications.length > 0
+      ? (softFlagged.length / allClassifications.length) * 20
+      : 0;
+    const hardIntensity = hardFlagged.length > 0
+      ? hardFlagged.reduce((sum, c) => sum + c.suggestive_score, 0) / hardFlagged.length
+      : 0;
+    const totalScore = Math.min(100, Math.round((prevalence + mildBump) * 0.3 + hardIntensity * 0.7));
+
+    // Per-frame sample for diagnostic — first 5 frames with category + clamped + raw.
+    const frameSample = allClassifications.slice(0, 5).map(c => ({
+      idx: c.frame_index,
+      cat: c.category,
+      score: c.suggestive_score,
+      raw: (c as any)._raw_score,
+      type: c.content_type,
+    }));
+
+    console.log('[haiku-scan] score breakdown:', {
+      total: allClassifications.length,
+      clean: categoryCounts.clean,
+      mild: softFlagged.length,
+      hardFlagged: hardFlagged.length,
+      prevalence: prevalence.toFixed(1),
+      mildBump: mildBump.toFixed(1),
+      hardIntensity: hardIntensity.toFixed(1),
+      totalScore,
+      sample: frameSample,
+    });
 
     const suggestivePercent = allClassifications.length > 0
       ? Math.round(((categoryCounts.suggestive + categoryCounts.explicit) / allClassifications.length) * 100)

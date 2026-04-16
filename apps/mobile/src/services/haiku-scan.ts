@@ -44,7 +44,7 @@ export interface HaikuScanResult {
  * per-frame classifications with an overall score.
  */
 /** Max frames to send to the edge function (matches server limit of 30) */
-const MAX_FRAMES = 20;
+const MAX_FRAMES = 30;
 
 export async function scanWithHaiku(
   frameUris: string[],
