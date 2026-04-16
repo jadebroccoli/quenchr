@@ -271,8 +271,15 @@ serve(async (req: Request) => {
       : 0;
     const totalScore = Math.min(100, Math.round((prevalence + mildBump) * 0.3 + hardIntensity * 0.7));
 
-    // Per-frame sample for diagnostic — first 5 frames with category + clamped + raw.
-    const frameSample = allClassifications.slice(0, 5).map(c => ({
+    // Per-frame diagnostic for ALL frames so we can see calibration issues
+    // even when the trouble is in the tail of the sequence (frames 20+).
+    // idx = original frame index from the video timeline
+    // cat = Haiku's category judgment
+    // score = clamped score actually used in the formula
+    // raw = the unclamped model-reported score (undefined if it already
+    //       sat inside its category band — i.e. no clamp was needed)
+    // type = Haiku's content_type label (meme, fitness, thirst_trap, ...)
+    const frameSample = allClassifications.map(c => ({
       idx: c.frame_index,
       cat: c.category,
       score: c.suggestive_score,
@@ -289,8 +296,10 @@ serve(async (req: Request) => {
       mildBump: mildBump.toFixed(1),
       hardIntensity: hardIntensity.toFixed(1),
       totalScore,
-      sample: frameSample,
     });
+    // Separate log so the summary above stays scannable and the big
+    // array doesn't truncate it in the log viewer.
+    console.log('[haiku-scan] frames:', JSON.stringify(frameSample));
 
     const suggestivePercent = allClassifications.length > 0
       ? Math.round(((categoryCounts.suggestive + categoryCounts.explicit) / allClassifications.length) * 100)

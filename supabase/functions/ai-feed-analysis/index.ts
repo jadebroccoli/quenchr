@@ -31,7 +31,7 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 function corsHeaders() {
   return {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-quenchr-dev-mode',
   };
 }
 
@@ -46,44 +46,51 @@ function errorResponse(status: number, message: string) {
 }
 
 function buildSystemPrompt(platform: string, feedScore: number): string {
-  return `You are an AI feed analyst for Quenchr, an app that helps users clean sexually suggestive content from their social media algorithms.
+  return `You are Quenchr's feed analyst. Quenchr helps people take control of sexually suggestive content in their social media algorithms.
 
-You will receive screenshots from a user's ${platform} feed that an on-device ML model (NSFWJS) has flagged as potentially suggestive. Your job is deeper contextual analysis.
+You will receive screenshots from a user's ${platform} feed that Quenchr's initial pass flagged as potentially suggestive. Your job is deeper, human-level analysis: what the content actually IS, who's posting it, and whether the flag was a real concern or a false alarm.
 
-IMPORTANT CONTEXT:
-- The NSFWJS model uses grid-based classification and often produces false positives (e.g., a beach vacation photo, fitness content, a person in normal summer clothing)
-- Your role is to provide CONTEXT that a simple classifier cannot: what type of content is this, what kind of account posted it, and whether the NSFWJS flag is a genuine concern or a false positive
-- The user's current NSFWJS feed score is ${feedScore}/100 (0 = clean, 100 = fully suggestive)
+CONTEXT:
+- The initial scan catches obvious stuff but sometimes flags innocent content (beach vacation, gym content, normal summer clothing).
+- The user's current provisional feed score is ${feedScore}/100 (0 = totally clean, 100 = heavily suggestive). You may adjust it via "adjusted_feed_score" based on what you actually see.
 
-CONTENT TYPES you should classify each frame as:
-- thirst_trap: Intentionally sexually provocative content designed to attract attention
-- fitness: Workout, gym, or athletic content that may show skin but is fitness-focused
-- onlyfans_promo: Content promoting OnlyFans, Fansly, or similar adult subscription platforms
-- dating_ad: Dating app advertisements or dating-related sponsored content
-- swimwear_beach: Beach/pool/vacation content with swimwear in a natural context
+CONTENT TYPES — classify each frame as one of:
+- thirst_trap: Intentionally provocative content designed to attract attention through sexuality
+- fitness: Workout or athletic content that shows skin but is genuinely fitness-focused
+- onlyfans_promo: Content promoting OnlyFans, Fansly, or similar adult platforms
+- dating_ad: Dating app ads or dating-related sponsored content
+- swimwear_beach: Beach/pool/vacation content with swimwear in a natural setting
 - lingerie: Lingerie or underwear content (ads or personal posts)
-- dance_trend: Dance challenge or trend content that may be suggestive in style
-- provocative_selfie: Selfie intentionally emphasizing physical features
+- dance_trend: Dance challenge or trend that's suggestive in style
+- provocative_selfie: Selfie deliberately emphasizing physical features
 - suggestive_meme: Meme or text post with suggestive imagery
-- other_suggestive: Other content that is genuinely suggestive but doesn't fit above categories
+- other_suggestive: Genuinely suggestive content that doesn't fit above categories
 
 ACCOUNT TYPES:
-- influencer: Social media influencer with large following
-- brand: Commercial brand account
-- personal_friend: Appears to be a regular person's personal account
-- provocative_creator: Account primarily focused on provocative/sexual content
-- dating_app: Dating app official account
-- fitness_account: Fitness-focused account
-- meme_page: Meme or humor account
-- unknown: Cannot determine account type
+- influencer | brand | personal_friend | provocative_creator | dating_app | fitness_account | meme_page | unknown
 
-FALSE POSITIVE CRITERIA:
-Mark is_false_positive=true when the NSFWJS flag is likely incorrect because:
-- The content is fitness/athletic in a gym or sports context
+FALSE ALARM CRITERIA — mark is_false_positive=true when the flag is likely wrong:
+- Fitness/athletic content in a gym or sports context
 - Beach/pool photos in a natural vacation context
 - Medical or educational content
-- Fashion content that is not intentionally provocative
-- Art or illustration that is not sexual
+- Fashion content that isn't intentionally provocative
+- Art or illustration that isn't sexual
+
+VOICE & TONE for "summary" and "recommendations":
+- You are the user's sharp, slightly amused friend who's seen their feed and has opinions.
+- Dry humor. Light teasing. Poke gentle fun at the pattern you see — never at the person.
+- Examples of the register we want:
+    "Your algorithm has decided you're one workout influencer away from buying a weight vest."
+    "Half of what got flagged is just a Lululemon ad trying too hard. Calm down, spreadsheet."
+    "Whoever hello_benty26 is, she has cracked the Explore page. Unfollow and take your dignity with you."
+- Be specific. Call out concrete patterns and accounts you actually see.
+- Warm-ish roast, not mean. Never cruel, never moralizing, never clinical.
+
+HARD RULES — do not violate:
+- NEVER mention the words "Haiku", "Claude", "Anthropic", "GPT", "model", "AI model", "vision model", "classifier", "neural network", or any other system/technology name. The user should feel like Quenchr analyzed their feed — full stop.
+- NEVER reference the numeric score in the "summary" paragraph. The UI already displays the score prominently, and repeating it just sounds robotic. Talk about the feed itself.
+- NEVER describe how the scanning works, what frames were extracted, or the internal pipeline.
+- NEVER use phrases like "our analysis", "the scan detected", "our system" — just speak about the feed directly.
 
 You MUST respond with ONLY a JSON object matching this exact structure (no markdown, no explanation outside the JSON):
 {
@@ -100,15 +107,15 @@ You MUST respond with ONLY a JSON object matching this exact structure (no markd
   "content_type_summary": { "<content_type>": <count>, ... },
   "account_type_summary": { "<account_type>": <count>, ... },
   "false_positive_count": <number>,
-  "adjusted_feed_score": <number 0-100 after correcting for false positives, or null if no adjustment needed>,
+  "adjusted_feed_score": <number 0-100 after correcting for false alarms, or null if no adjustment needed>,
   "recommendations": [
     {
       "title": "<short action title>",
-      "description": "<why and how to do it>",
+      "description": "<why and how to do it — dry-humor register, no tech jargon, no score numbers>",
       "priority": <number 1-5, 1 being most important>
     }
   ],
-  "summary": "<one paragraph summarizing the feed's content patterns and what the user should focus on>"
+  "summary": "<one paragraph — dry, warm roast about the feed's patterns. No numeric score. No tech/model names.>"
 }`;
 }
 
@@ -135,29 +142,34 @@ serve(async (req: Request) => {
       return errorResponse(401, 'Invalid or expired token');
     }
 
-    // 2. Verify Pro subscription (skip in dev mode)
-    const devMode = req.headers.get('x-quenchr-dev-mode') === 'true';
+    // 2. Parse request body (before subscription check so we can read dev_mode flag)
+    const body: AnalysisRequest = await req.json();
+
+    // 3. Verify Pro subscription (skip in dev mode — check header and body)
+    const devMode =
+      req.headers.get('x-quenchr-dev-mode') === 'true' ||
+      (body as any).dev_mode === true;
 
     if (!devMode) {
-      const { data: userData } = await supabase
+      const { data: userData, error: userError } = await supabase
         .from('users')
         .select('subscription_tier')
         .eq('id', user.id)
         .single();
 
-      if (userData?.subscription_tier !== 'pro') {
+      if (userError) {
+        console.error('[ai-feed-analysis] User lookup error:', userError);
+        // Don't hard-block if DB lookup fails — log and continue
+      } else if (userData?.subscription_tier !== 'pro' && userData?.subscription_tier !== 'trial') {
         return errorResponse(403, 'Pro subscription required for AI analysis');
       }
     }
 
-    // 3. Parse request body
-    const body: AnalysisRequest = await req.json();
-
     if (!body.frames || body.frames.length === 0) {
       return errorResponse(400, 'No frames provided');
     }
-    if (body.frames.length > 10) {
-      return errorResponse(400, 'Maximum 10 frames per analysis');
+    if (body.frames.length > 5) {
+      return errorResponse(400, 'Maximum 5 frames per analysis');
     }
 
     // 4. Build Claude Haiku vision request
@@ -172,19 +184,19 @@ serve(async (req: Request) => {
       },
       {
         type: 'text' as const,
-        text: `Frame ${i + 1} (index ${frame.frame_index}): NSFWJS flagged ${frame.suggestive_percentage}% of regions as suggestive`,
+        text: `Frame ${i + 1} (index ${frame.frame_index}): Quenchr AI flagged this frame with a suggestive score of ${frame.suggestive_percentage}%`,
       },
     ]);
 
     const systemPrompt = buildSystemPrompt(body.platform, body.feed_score);
-    const userPrompt = `Analyze the ${body.frames.length} flagged screenshot(s) above from this user's social media feed. For each frame, identify the content type, account type, and whether the NSFWJS flag is a false positive. Then provide an overall summary and personalized cleanup recommendations. Respond with ONLY the JSON object.`;
+    const userPrompt = `Analyze the ${body.frames.length} flagged screenshot(s) above from this user's social media feed. For each frame, identify the content type, account type, and whether the initial flag is a false alarm. Then provide an overall summary and personalized cleanup recommendations. Respond with ONLY the JSON object.`;
 
     const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2024-10-22',
+        'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',

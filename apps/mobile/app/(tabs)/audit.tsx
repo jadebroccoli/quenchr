@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { PLATFORMS } from '@quenchr/shared';
 import type { Platform, FeedAudit, AIInsightsResult, AIInsightsStatus } from '@quenchr/shared';
-import { createFeedAudit } from '@quenchr/supabase-client';
+import { createFeedAudit, updateFeedAudit } from '@quenchr/supabase-client';
 import { useAuditStore } from '../../src/stores/audit-store';
 import { useAuthStore } from '../../src/stores/auth-store';
 import { useSubscriptionStore } from '../../src/stores/subscription-store';
@@ -121,7 +121,27 @@ async function runHaikuScan(
     }));
 
     analyzeWithAI(flaggedFrames, frameUris, selectedPlatform, haikuScore, auditId, true)
-      .then((result) => callbacks.setAIInsightsResult(result))
+      .then(async (result) => {
+        callbacks.setAIInsightsResult(result);
+
+        // If the AI review produced an adjusted score, treat it as the new
+        // canonical feed_score. The raw classifier output is noisy and the
+        // AI has seen the actual flagged frames to judge false positives.
+        // Single source of truth prevents the "big number says 18, narrative
+        // says 50" mismatch.
+        if (result.adjusted_feed_score != null && auditId) {
+          try {
+            const { data: updated } = await updateFeedAudit(auditId, {
+              feed_score: result.adjusted_feed_score,
+            });
+            if (updated) {
+              callbacks.setCurrentAudit(updated as FeedAudit);
+            }
+          } catch (err) {
+            console.warn('[audit] failed to persist adjusted score:', err);
+          }
+        }
+      })
       .catch((err) => {
         console.warn('[audit] AI analysis failed:', err);
         callbacks.setAIInsightsError(err instanceof Error ? err.message : 'AI analysis failed');
