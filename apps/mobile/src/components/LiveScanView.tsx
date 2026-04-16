@@ -14,6 +14,16 @@ import {
 } from '../services/screen-capture';
 import { colors, type as typ, radius, spacing } from '../tokens';
 
+/**
+ * Hard cap on live-scan recording length. With a 30-frame server cap spread
+ * evenly across the recording, 3 min gives us one sample every ~6s — beyond
+ * that, sampling density drops without improving analysis (we'd be throwing
+ * away extra recording). Also protects battery/thermals and temp storage.
+ * At this duration we gracefully stop recording and kick off analysis —
+ * we do NOT boot the user back or drop their scan.
+ */
+const MAX_RECORDING_SECONDS = 180;
+
 interface Props {
   platform: Platform;
   onFramesExtracted: (frameUris: string[]) => void;
@@ -33,6 +43,9 @@ export function LiveScanView({ platform, onFramesExtracted, onCancel }: Props) {
   const [error, setError] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  // Ref keeps the latest handleStopAndAnalyze for the timer interval
+  // without forcing a re-subscription every render.
+  const stopAndAnalyzeRef = useRef<() => void>(() => {});
 
   const pageName = platform === 'instagram' ? 'Explore page' : 'For You Page';
 
@@ -68,11 +81,22 @@ export function LiveScanView({ platform, onFramesExtracted, onCancel }: Props) {
     return () => loop.stop();
   }, [liveScanState]);
 
-  // Duration timer during recording
+  // Duration timer during recording — also enforces MAX_RECORDING_SECONDS.
+  // When the cap is reached we fire stopAndAnalyzeRef.current() which
+  // transitions state to 'stopping' and begins extraction. We clear the
+  // interval first so the tick naturally fires only once.
   useEffect(() => {
     if (liveScanState === 'recording') {
       timerRef.current = setInterval(() => {
-        setRecordingDuration(getRecordingDuration());
+        const duration = getRecordingDuration();
+        setRecordingDuration(duration);
+        if (duration >= MAX_RECORDING_SECONDS) {
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+          }
+          stopAndAnalyzeRef.current();
+        }
       }, 1000);
     }
 
@@ -150,6 +174,10 @@ export function LiveScanView({ platform, onFramesExtracted, onCancel }: Props) {
     }
   }, [onFramesExtracted]);
 
+  // Keep the auto-stop ref pointed at the latest callback. No deps needed —
+  // every render refreshes the pointer.
+  stopAndAnalyzeRef.current = handleStopAndAnalyze;
+
   const formatDuration = (seconds: number) => {
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
@@ -165,7 +193,10 @@ export function LiveScanView({ platform, onFramesExtracted, onCancel }: Props) {
           <Text style={styles.recordingLabel}>Recording</Text>
         </View>
 
-        <Text style={styles.timer}>{formatDuration(recordingDurationSeconds)}</Text>
+        <Text style={styles.timer}>
+          {formatDuration(recordingDurationSeconds)}
+          <Text style={styles.timerCap}> / {formatDuration(MAX_RECORDING_SECONDS)}</Text>
+        </Text>
 
         <Text style={styles.recordingInstruction}>
           Switch to {PLATFORMS[platform].label} and scroll your {pageName}.{'\n'}
@@ -266,6 +297,10 @@ const styles = StyleSheet.create({
     ...typ.bigNum,
     color: colors.ink,
     fontVariant: ['tabular-nums'],
+  },
+  timerCap: {
+    // Same size so the " / 3:00" sits inline with the counter but muted
+    color: colors.ink4,
   },
   recordingInstruction: {
     ...typ.body,
