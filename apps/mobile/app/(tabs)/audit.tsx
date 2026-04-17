@@ -124,21 +124,35 @@ async function runHaikuScan(
       .then(async (result) => {
         callbacks.setAIInsightsResult(result);
 
-        // If the AI review produced an adjusted score, treat it as the new
-        // canonical feed_score. The raw classifier output is noisy and the
-        // AI has seen the actual flagged frames to judge false positives.
-        // Single source of truth prevents the "big number says 18, narrative
-        // says 50" mismatch.
-        if (result.adjusted_feed_score != null && auditId) {
+        // Recompute the feed score DETERMINISTICALLY after AI has flagged
+        // false positives. We ignore AI's own adjusted_feed_score — the
+        // model's self-scoring was inconsistent (42 for a clearly heavy feed).
+        // Instead, strip the frames the AI marked as false positives from
+        // the original classifications and re-run the exact formula the
+        // edge function uses. Same math on both sides of the AI pass.
+        const falsePositiveIndices = new Set(
+          (result.frame_insights ?? [])
+            .filter((fi) => fi.is_false_positive)
+            .map((fi) => fi.frame_index)
+        );
+        const filtered = haikuResult.classifications.filter(
+          (c) => !falsePositiveIndices.has(c.frame_index)
+        );
+        const recomputed = computeHaikuScore(filtered);
+
+        if (auditId) {
           try {
-            const { data: updated } = await updateFeedAudit(auditId, {
-              feed_score: result.adjusted_feed_score,
-            });
-            if (updated) {
-              callbacks.setCurrentAudit(updated as FeedAudit);
+            // Update DB but do NOT rely on its return payload — Supabase's
+            // update().select().single() has been inconsistent for us (it
+            // came back with total_scanned=0 which nuked the stats cards).
+            // Instead we merge locally using the state we already know.
+            await updateFeedAudit(auditId, { feed_score: recomputed });
+            const current = useAuditStore.getState().currentAudit;
+            if (current && current.id === auditId) {
+              callbacks.setCurrentAudit({ ...current, feed_score: recomputed });
             }
           } catch (err) {
-            console.warn('[audit] failed to persist adjusted score:', err);
+            console.warn('[audit] failed to persist recomputed score:', err);
           }
         }
       })
@@ -147,6 +161,40 @@ async function runHaikuScan(
         callbacks.setAIInsightsError(err instanceof Error ? err.message : 'AI analysis failed');
       });
   }
+}
+
+/**
+ * Deterministic feed-score recalculator — MUST stay in lockstep with the
+ * formula in supabase/functions/haiku-scan/index.ts. Used to rescore after
+ * the AI insights pass strips false-positive frames.
+ *
+ * Weighting:
+ *   hardPrev (1.2x)   — % of frames that are suggestive+explicit
+ *   hardIntensity (0.5x) — avg score of hard flags (36/66 floors apply)
+ *   softPrev (0.3x)   — % of frames that are mild
+ *   presenceBonus (+15) — any hard flag at all adds 15 baseline points
+ */
+function computeHaikuScore(classifications: HaikuFrameClassification[]): number {
+  const total = classifications.length;
+  if (total === 0) return 0;
+  const hard = classifications.filter(
+    (c) => c.category === 'suggestive' || c.category === 'explicit'
+  );
+  const soft = classifications.filter((c) => c.category === 'mild');
+  const hardPrev = (hard.length / total) * 100;
+  const softPrev = (soft.length / total) * 100;
+  const hardIntensity =
+    hard.length > 0
+      ? hard.reduce((sum, c) => sum + c.suggestive_score, 0) / hard.length
+      : 0;
+  const presenceBonus = hard.length > 0 ? 15 : 0;
+  return Math.min(
+    100,
+    Math.max(
+      0,
+      Math.round(hardPrev * 1.2 + hardIntensity * 0.5 + softPrev * 0.3 + presenceBonus)
+    )
+  );
 }
 
 export default function AuditScreen() {

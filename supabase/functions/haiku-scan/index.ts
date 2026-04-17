@@ -71,7 +71,22 @@ SCORING GUIDE:
 - 66-100: Highly explicit. Near-nudity, extremely provocative content, sexual content, exposed intimate areas
 
 Be STRICT. This app exists to flag content users are trying to escape. Default to scoring HIGHER when uncertain.
-A woman in a bikini posing for the camera = at least 45. A shirtless man flexing = at least 40. Lingerie = at least 60. OF promo = at least 70.
+
+Concrete calibration anchors — if you see any of these, the score MUST meet or exceed the listed floor:
+- Fully-clothed woman with visible cleavage or bodycon-emphasized figure posing toward camera: at least 40
+- Bikini or swimwear shot where the body is the focus (not a group beach photo): at least 50
+- Shirtless muscular man flexing or posing for the camera: at least 45
+- Clearly suggestive pose (arched back, hands on body, looking-into-lens thirst trap energy): at least 55
+- Lingerie, underwear, body-tight fitness wear with suggestive framing: at least 60
+- OnlyFans / adult-platform promo: at least 70
+- Explicit nudity, near-nudity, simulated sexual acts: at least 80
+
+IMPORTANT CONSISTENCY RULE: the category field and suggestive_score MUST agree.
+- score 0-15 → category "clean"
+- score 16-35 → category "mild"
+- score 36-65 → category "suggestive"
+- score 66-100 → category "explicit"
+NEVER output e.g. category="suggestive" with score=10. Pick the score first, then the matching category.
 
 Respond with ONLY a JSON array of objects. No markdown, no explanation:
 [{"frame_index": 0, "suggestive_score": 25, "category": "mild", "content_type": "fitness", "description": "Woman doing squats at gym"}, ...]`;
@@ -249,27 +264,33 @@ serve(async (req: Request) => {
       explicit: allClassifications.filter(c => c.category === 'explicit').length,
     };
 
-    // Calculate feed score.
-    // We ignore "mild" from the flagged intensity pool — mild frames are
-    // background noise (gym content, beachwear). Only suggestive/explicit
-    // frames drive the score up meaningfully.
-    // Formula: 30% mild-inclusive prevalence + 70% suggestive/explicit intensity
+    // Calculate feed score using the shared formula (see computeFeedScore).
+    // Tuned to alert users when even a few suggestive frames appear —
+    // previous formula (30% prev + 70% intensity) was too flat because
+    // intensity stays pinned to the category floor while prevalence is
+    // naturally low (a 30-frame scan with 2 real hits = ~7% prev).
     const hardFlagged = allClassifications.filter(
       c => c.category === 'suggestive' || c.category === 'explicit'
     );
     const softFlagged = allClassifications.filter(c => c.category === 'mild');
-    const prevalence = allClassifications.length > 0
-      ? ((categoryCounts.suggestive + categoryCounts.explicit) / allClassifications.length) * 100
-      : 0;
-    // Mild adds a small bump to prevalence so a feed with lots of mild content
-    // still scores noticeably above 0
-    const mildBump = allClassifications.length > 0
-      ? (softFlagged.length / allClassifications.length) * 20
-      : 0;
+    const total = allClassifications.length;
+    const hardPrev = total > 0 ? (hardFlagged.length / total) * 100 : 0;
+    const softPrev = total > 0 ? (softFlagged.length / total) * 100 : 0;
     const hardIntensity = hardFlagged.length > 0
       ? hardFlagged.reduce((sum, c) => sum + c.suggestive_score, 0) / hardFlagged.length
       : 0;
-    const totalScore = Math.min(100, Math.round((prevalence + mildBump) * 0.3 + hardIntensity * 0.7));
+    // Presence bonus: if ANY hard flag exists, add 15 baseline points —
+    // even a single thirst trap in a scroll session is worth flagging.
+    const presenceBonus = hardFlagged.length > 0 ? 15 : 0;
+    const totalScore = Math.min(100, Math.max(0, Math.round(
+      hardPrev * 1.2
+      + hardIntensity * 0.5
+      + softPrev * 0.3
+      + presenceBonus
+    )));
+    // Legacy variables kept for the existing console.log payload.
+    const prevalence = hardPrev;
+    const mildBump = softPrev * 0.3;
 
     // Per-frame diagnostic for ALL frames so we can see calibration issues
     // even when the trouble is in the tail of the sequence (frames 20+).
