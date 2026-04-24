@@ -71,7 +71,7 @@ async function runHaikuScan(
   const userId = useAuthStore.getState().user?.id;
 
   if (userId) {
-    const { data } = await createFeedAudit({
+    const { data, error: insertError } = await createFeedAudit({
       user_id: userId,
       platform: selectedPlatform,
       total_scanned: totalFrames,
@@ -81,6 +81,14 @@ async function runHaikuScan(
       feed_score: haikuScore,
       scan_type: 'haiku',
     });
+    if (insertError) {
+      // Surface insert failures instead of swallowing them. Previously a
+      // missing DB column caused every INSERT to return { data: null }
+      // silently, which made the UI render zero-fallback stats cards
+      // while AI Insights still populated from a different store slice
+      // — a ghost-success state that was hell to diagnose.
+      console.error('[audit] createFeedAudit failed:', insertError);
+    }
     if (data) {
       callbacks.addAudit(data as FeedAudit);
       auditId = (data as FeedAudit).id;
