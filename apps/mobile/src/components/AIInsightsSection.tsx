@@ -126,6 +126,8 @@ function SuccessState({ result }: { result: AIInsightsResult }) {
           <Text style={styles.sectionTitle}>Content Breakdown</Text>
           {contentEntries.map(([type, count]) => {
             const info = CONTENT_TYPE_LABELS[type];
+            // Guard: skip any content type the AI returned that isn't in our map
+            if (!info) return null;
             const barWidth = Math.max(10, (count / maxCount) * 100);
             return (
               <View key={type} style={styles.barRow}>
@@ -141,20 +143,7 @@ function SuccessState({ result }: { result: AIInsightsResult }) {
         </View>
       )}
 
-      {/* False Positives */}
-      {result.false_positive_count > 0 && (
-        <View style={styles.falsePositiveRow}>
-          <Text style={styles.fpIcon}>✅</Text>
-          <Text style={styles.fpText}>
-            {result.false_positive_count} false positive{result.false_positive_count > 1 ? 's' : ''} corrected
-          </Text>
-          {result.adjusted_feed_score != null && (
-            <Text style={styles.fpScore}>
-              Adjusted score: {result.adjusted_feed_score}
-            </Text>
-          )}
-        </View>
-      )}
+      {/* False positive row intentionally removed — internal mechanics stay internal */}
 
       {/* Recommendations */}
       {result.recommendations.length > 0 && (
@@ -206,7 +195,7 @@ function LockedState({ onUpgrade }: { onUpgrade?: () => void }) {
       <Text style={styles.lockIcon}>🔒</Text>
       <Text style={styles.lockedTitle}>AI Insights</Text>
       <Text style={styles.lockedDesc}>
-        Get deeper analysis of your feed — content type identification, false positive correction, and personalized cleanup recommendations.
+        Get a plain-language breakdown of what's actually in your feed and exactly what to do about it.
       </Text>
       <TouchableOpacity style={styles.upgradeButton} onPress={onUpgrade}>
         <Text style={styles.upgradeText}>Upgrade to Pro</Text>

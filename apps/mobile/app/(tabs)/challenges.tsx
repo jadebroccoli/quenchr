@@ -26,7 +26,7 @@ export default function ChallengesScreen() {
   const setChallenges = useCleanupStore((s) => s.setChallenges);
   const streak = useCleanupStore((s) => s.streak);
   const setStreak = useCleanupStore((s) => s.setStreak);
-  const isPro = useSubscriptionStore((s) => s.isPro());
+  const isPro = useSubscriptionStore((s) => s.proAccess);
 
   const completedCount = challenges.filter((c) => c.completed).length;
   const allDone = challenges.length > 0 && completedCount === challenges.length;

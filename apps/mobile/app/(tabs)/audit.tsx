@@ -114,18 +114,46 @@ async function runHaikuScan(
   callbacks.setHaikuScanStatus('done');
   callbacks.setScreenState('results');
 
-  // Trigger AI Insights on flagged frames (async, non-blocking)
-  const flaggedClassifications = haikuResult.classifications.filter(
-    (c: HaikuFrameClassification) =>
-      c.category === 'suggestive' || c.category === 'explicit' || c.suggestive_score > 0.3
-  );
+  // Trigger AI Insights on flagged frames (async, non-blocking).
+  // Sort descending so we send the MOST suspicious frames first (not just
+  // the first 5 in timeline order). Filter to suggestive/explicit only —
+  // the old `suggestive_score > 0.3` guard passed all 30 frames because
+  // suggestive_score is 0-100, not 0-1.
+  const flaggedClassifications = haikuResult.classifications
+    .filter((c: HaikuFrameClassification) =>
+      c.category === 'suggestive' || c.category === 'explicit'
+    )
+    .sort((a, b) => b.suggestive_score - a.suggestive_score);
+
+  if (flaggedClassifications.length === 0) {
+    // Nothing flagged — skip the API call and show a static clean result instantly.
+    // Picks one of several dry clean-feed messages to avoid feeling robotic.
+    const cleanMessages = [
+      "Your feed is genuinely clean. Not a single thirst trap, no OF promos, no deliberate attention grabs — just normal content from people living their lives. Keep it this way.",
+      "Clean sweep. Nothing here is trying to hijack your attention sexually. Your algorithm is behaving itself right now — that's worth protecting.",
+      "You're doing it right. No suggestive content made it through this scroll. The work you've put into shaping your algorithm is showing. Keep tapping 'not interested' on anything that slips through.",
+      "Pure feed. Genuinely clean. Whatever habits you've built around your algorithm are working — this is exactly what a healthy scroll looks like.",
+    ];
+    const summary = cleanMessages[Math.floor(Math.random() * cleanMessages.length)];
+    callbacks.setAIInsightsResult({
+      frame_insights: [],
+      content_type_summary: {},
+      account_type_summary: {},
+      false_positive_count: 0,
+      adjusted_feed_score: 0,
+      recommendations: [],
+      summary,
+    } as any);
+    return;
+  }
 
   if (flaggedClassifications.length > 0) {
     callbacks.setAIInsightsStatus('loading');
 
+    // suggestive_score is already 0-100 — no * 100 needed.
     const flaggedFrames: FlaggedFrame[] = flaggedClassifications.slice(0, 5).map((f) => ({
       image_index: f.frame_index,
-      suggestive_percentage: f.suggestive_score * 100,
+      suggestive_percentage: f.suggestive_score,
     }));
 
     analyzeWithAI(flaggedFrames, frameUris, selectedPlatform, haikuScore, auditId, true)
@@ -172,15 +200,17 @@ async function runHaikuScan(
 }
 
 /**
- * Deterministic feed-score recalculator — MUST stay in lockstep with the
- * formula in supabase/functions/haiku-scan/index.ts. Used to rescore after
+ * Deterministic feed-score recalculator — mirrors the formula in
+ * supabase/functions/haiku-scan/index.ts exactly. Used to rescore after
  * the AI insights pass strips false-positive frames.
  *
- * Weighting:
- *   hardPrev (1.2x)   — % of frames that are suggestive+explicit
- *   hardIntensity (0.5x) — avg score of hard flags (36/66 floors apply)
- *   softPrev (0.3x)   — % of frames that are mild
- *   presenceBonus (+15) — any hard flag at all adds 15 baseline points
+ * Weighting (must stay in sync with server):
+ *   hardPrev      (1.2×) — % of frames that are suggestive/explicit (primary driver)
+ *   hardIntensity (0.3×) — avg score of those frames (distinguishes mild from explicit)
+ *   softPrev      (0.1×) — % mild frames (minor background contribution)
+ *
+ * No presenceBonus — the server removed the flat +15 because it inflated scores
+ * for feeds with only a handful of false-positive flags.
  */
 function computeHaikuScore(classifications: HaikuFrameClassification[]): number {
   const total = classifications.length;
@@ -195,12 +225,11 @@ function computeHaikuScore(classifications: HaikuFrameClassification[]): number 
     hard.length > 0
       ? hard.reduce((sum, c) => sum + c.suggestive_score, 0) / hard.length
       : 0;
-  const presenceBonus = hard.length > 0 ? 15 : 0;
   return Math.min(
     100,
     Math.max(
       0,
-      Math.round(hardPrev * 1.2 + hardIntensity * 0.5 + softPrev * 0.3 + presenceBonus)
+      Math.round(hardPrev * 1.2 + hardIntensity * 0.3 + softPrev * 0.1)
     )
   );
 }

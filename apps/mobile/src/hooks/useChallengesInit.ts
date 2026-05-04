@@ -18,7 +18,7 @@ import type { Challenge, UserChallenge } from '@quenchr/shared';
  */
 export function useChallengesInit() {
   const user = useAuthStore((s) => s.user);
-  const isPro = useSubscriptionStore((s) => s.isPro());
+  const isPro = useSubscriptionStore((s) => s.proAccess);
   const limits = useSubscriptionStore((s) => s.limits);
   const setChallenges = useCleanupStore((s) => s.setChallenges);
 

@@ -64,32 +64,54 @@ For EACH frame, respond with:
 - content_type: classify as one of: normal, fitness, swimwear_beach, fashion, thirst_trap, provocative_selfie, dance_trend, lingerie, onlyfans_promo, suggestive_meme, explicit_content
 - description: one short sentence describing what's in the frame
 
+THE CORE TEST — use this as your calibration anchor:
+"If someone glanced at this person's phone screen at work or on the train, would they be visibly uncomfortable or judgmental about what they saw?"
+- YES, people would be aghast → suggestive (36+) or explicit (66+)
+- Slightly awkward but not alarming → mild (16-35)
+- Nobody would bat an eye → clean (0-15)
+
+ALWAYS CLEAN — score 0-15, NO EXCEPTIONS:
+These content types are NEVER suggestive regardless of what else is in the frame:
+- Cars, vehicles, automotive content, wheels, racing, car parts, modified cars — ALWAYS clean
+- Political content, commentary, debate clips, news segments — ALWAYS clean
+- Memes of any kind (text macros, reaction images, humor posts, comment screenshots) — ALWAYS clean
+- Sports highlights, athletic competitions, game clips — ALWAYS clean
+- Food, cooking, recipes — ALWAYS clean
+- Pets, animals, nature, landscapes — ALWAYS clean
+- Gaming content, tech reviews, tutorials of any kind — ALWAYS clean
+- Comedy skits, prank videos, challenges (non-sexual) — ALWAYS clean
+- Person talking to camera (vlog, commentary, storytime) regardless of how they look — ALWAYS clean
+- Makeup tutorials, hair tutorials, lifestyle content — ALWAYS clean
+- Music without provocative visuals, concerts, instruments — ALWAYS clean
+
 SCORING GUIDE:
-- 0-15: Completely clean. News, memes, food, pets, landscapes, text posts, fully-clothed people in neutral poses
-- 16-35: Mildly suggestive. Tight gym clothing, minor skin showing, standard fitness content, beach group photos
-- 36-65: Clearly suggestive. Thirst traps, provocative poses, suggestive captions, OF promos, lingerie, bikini close-ups, shirtless body-focused shots
-- 66-100: Highly explicit. Near-nudity, extremely provocative content, sexual content, exposed intimate areas
+- 0-15: Clean. The person next to you on the train would not care.
+- 16-35: Mildly suggestive. Standard gym content showing skin incidentally; beach/pool photos in a natural group setting; fashion content focused on the outfit; dancing where the choreography is the focus (not the body).
+- 36-65: Clearly suggestive. Content whose PRIMARY purpose is to be sexually provocative: thirst traps, OF/Fansly promos, lingerie or underwear as the main subject, bikini close-ups where the body is the explicit focus (not a beach setting), slow-motion body scans, "body check" videos.
+- 66-100: Explicitly sexual. Near-nudity, nudity, simulated sexual acts, highly explicit content.
 
-Be STRICT. This app exists to flag content users are trying to escape. Default to scoring HIGHER when uncertain.
+INTENT AND FRAMING matter more than what the person looks like or wears:
+- Woman in a fitted outfit talking, doing a tutorial, or dancing normally = clean (0-15)
+- Woman in gym clothes working out = clean (0-15)
+- Woman in a bikini at the beach with friends = clean to mild (0-20)
+- Woman in a bikini posing alone with the camera deliberately lingering on her body = suggestive (40-55)
+- Man shirtless playing sport or in a fitness video = clean (0-15)
+- Man shirtless posing directly at camera in a thirst-trap style = mild to suggestive (25-45)
+- OnlyFans / Fansly / adult platform promo = at least 60, regardless of skin shown
+- Lingerie or underwear as the main subject = at least 50
+- Explicit nudity or sexual acts = at least 75
 
-Concrete calibration anchors — if you see any of these, the score MUST meet or exceed the listed floor:
-- Fully-clothed woman with visible cleavage or bodycon-emphasized figure posing toward camera: at least 40
-- Bikini or swimwear shot where the body is the focus (not a group beach photo): at least 50
-- Shirtless muscular man flexing or posing for the camera: at least 45
-- Clearly suggestive pose (arched back, hands on body, looking-into-lens thirst trap energy): at least 55
-- Lingerie, underwear, body-tight fitness wear with suggestive framing: at least 60
-- OnlyFans / adult-platform promo: at least 70
-- Explicit nudity, near-nudity, simulated sexual acts: at least 80
+When uncertain: ask yourself "is the sexual framing INTENTIONAL?" If yes, flag. If it's incidental (beach day, gym, fashion) — do NOT flag.
 
 IMPORTANT CONSISTENCY RULE: the category field and suggestive_score MUST agree.
 - score 0-15 → category "clean"
 - score 16-35 → category "mild"
 - score 36-65 → category "suggestive"
 - score 66-100 → category "explicit"
-NEVER output e.g. category="suggestive" with score=10. Pick the score first, then the matching category.
+NEVER output e.g. category="suggestive" with score=10. Pick the score first, then derive the matching category.
 
 Respond with ONLY a JSON array of objects. No markdown, no explanation:
-[{"frame_index": 0, "suggestive_score": 25, "category": "mild", "content_type": "fitness", "description": "Woman doing squats at gym"}, ...]`;
+[{"frame_index": 0, "suggestive_score": 8, "category": "clean", "content_type": "normal", "description": "Car on a street"}, ...]`;
 }
 
 // ── Main Handler ──
@@ -279,18 +301,21 @@ serve(async (req: Request) => {
     const hardIntensity = hardFlagged.length > 0
       ? hardFlagged.reduce((sum, c) => sum + c.suggestive_score, 0) / hardFlagged.length
       : 0;
-    // Presence bonus: if ANY hard flag exists, add 15 baseline points —
-    // even a single thirst trap in a scroll session is worth flagging.
-    const presenceBonus = hardFlagged.length > 0 ? 15 : 0;
+    // Score formula:
+    //   hardPrev   = % of frames that are suggestive/explicit (primary driver)
+    //   hardIntensity = avg score of those frames (distinguishes mild suggestive from explicit)
+    //   softPrev   = % mild frames (minor background contribution)
+    //
+    // Removed presenceBonus: the flat +15 for any flag caused a 22%-flagged feed with
+    // mostly false positives to score 66. Prevalence already handles "any flag" naturally.
     const totalScore = Math.min(100, Math.max(0, Math.round(
       hardPrev * 1.2
-      + hardIntensity * 0.5
-      + softPrev * 0.3
-      + presenceBonus
+      + hardIntensity * 0.3
+      + softPrev * 0.1
     )));
     // Legacy variables kept for the existing console.log payload.
     const prevalence = hardPrev;
-    const mildBump = softPrev * 0.3;
+    const mildBump = softPrev * 0.1;
 
     // Per-frame diagnostic for ALL frames so we can see calibration issues
     // even when the trouble is in the tail of the sequence (frames 20+).

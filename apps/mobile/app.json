@@ -15,16 +15,18 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.quenchr.app",
-      "buildNumber": "3",
+      "buildNumber": "14",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       },
       "entitlements": {
-        "com.apple.security.application-groups": ["group.com.quenchr.app.screen-recorder"]
+        "com.apple.security.application-groups": [
+          "group.com.quenchr.app.screen-recorder"
+        ]
       }
     },
     "android": {
-      "versionCode": 3,
+      "versionCode": 17,
       "adaptiveIcon": {
         "backgroundColor": "#191714",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -48,6 +50,14 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#191714",
+          "sounds": []
+        }
+      ],
       [
         "expo-image-picker",
         {

@@ -1,6 +1,6 @@
 # Quenchr / FeedCleanse — Dev Handoff
 
-_Last updated: 2026-04-16_
+_Last updated: 2026-04-30_
 
 ---
 
@@ -62,8 +62,20 @@ Build IDs (2026-04-16):
 - **`ai-feed-analysis`** — second pass over flagged frames for false-positive detection, narrative summary, recommendations. Returns `adjusted_feed_score` which overrides Haiku's raw score on the results screen
 
 ### Scoring pipeline (server-side, `haiku-scan`)
-- Per-frame `suggestive_score` is **clamped to its category band** (clean 0-15, mild 16-35, suggestive 36-65, explicit 66-100). Haiku frequently gave e.g. `category: "suggestive", score: 10`, which dragged scores to ~18 regardless of content. Original unclamped score preserved in `_raw_score` for diagnostics.
-- Final score = `(prevalence + mildBump) * 0.3 + hardIntensity * 0.7`
+- Per-frame `suggestive_score` is **clamped to its category band** (clean 0-15, mild 16-35, suggestive 36-65, explicit 66-100). Original unclamped score preserved in `_raw_score` for diagnostics.
+- Final score = `hardPrev * 1.2 + hardIntensity * 0.3 + softPrev * 0.1` (no presenceBonus — the flat +15 was inflating scores for mostly-clean feeds)
+- `adjusted_feed_score` from `ai-feed-analysis` overrides this on the results screen and in the DB
+
+### Classifier prompt tuning (`haiku-scan`)
+- Removed "Be STRICT / default to scoring HIGHER when uncertain" — was causing gender bias (flagging any woman on screen as a thirst trap)
+- Removed the "fully-clothed woman posing → at least 40" anchor — same bias issue
+- New principle: **intent and framing, not appearance**. A woman in a fitted outfit talking to camera = clean. A bikini close-up where the body is the explicit subject = suggestive.
+- OF promos, lingerie, explicit content floors unchanged
+
+### AI narrative (`ai-feed-analysis`)
+- Added platform-context block: for TikTok FYP / Instagram Explore, content is algorithm-served (not followed). Prompt now bans "unfollow" for these surfaces and replaces it with platform-correct actions:
+  - TikTok: long-press → "Not Interested" / "Don't Recommend this Creator"
+  - Instagram Explore: three-dot → "Not Interested" / "Hide posts from [account]"
 
 ### Diagnostics
 - **Client (`haiku-scan.ts`)**: raw `fetch` (not `functions.invoke`) with loud `console.log` of token source, prefix, response status, body preview. Error messages tagged `[no-token]` or `[401 from edge: ...]` so the in-app alert tells us which code path fired without tethering.
@@ -104,9 +116,7 @@ Build IDs (2026-04-16):
 ## Pending tasks
 
 ### High priority
-- [ ] **Submit iOS build 8 to TestFlight** once EAS finishes: `eas submit --platform ios --id 3eae6e2f-d39c-4b46-a2af-d2dc2ff383ba`
-- [ ] **Upload Android build 9 AAB** to Play Console → Internal Testing
-- [ ] **Validate new build**: scan a feed, confirm FRAMES ≤ 30, confirm score updates from Haiku → AI-adjusted, confirm narrative has dry humor + no model names
+- [ ] **Classifier calibration** — continue tuning haiku-scan prompt. Current direction: less aggressive, intent/framing-based. Deploy with `supabase functions deploy haiku-scan --no-verify-jwt`
 - [ ] **RevenueCat paywall** — wire RC purchases to set `subscription_tier` in DB
 - [ ] **`trial_started_at` DB column** — server-side trial expiry instead of AsyncStorage
 

@@ -19,7 +19,7 @@ import type { Platform, CleanupTask } from '@quenchr/shared';
  */
 export function useCleanupInit() {
   const user = useAuthStore((s) => s.user);
-  const isPro = useSubscriptionStore((s) => s.isPro());
+  const isPro = useSubscriptionStore((s) => s.proAccess);
   const {
     setTasks,
     setProgress,

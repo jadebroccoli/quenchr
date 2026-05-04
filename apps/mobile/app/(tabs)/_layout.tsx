@@ -32,14 +32,12 @@ function BroomIcon({ color }: { color: string }) {
   );
 }
 
-function TrophyIcon({ color }: { color: string }) {
+function FocusIcon({ color }: { color: string }) {
   return (
     <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M6 9H4a2 2 0 01-2-2V5a2 2 0 012-2h2" />
-      <Path d="M18 9h2a2 2 0 002-2V5a2 2 0 00-2-2h-2" />
-      <Path d="M6 3h12v6a6 6 0 01-12 0V3z" />
-      <Path d="M12 15v3" />
-      <Path d="M8 21h8" />
+      <Path d="M12 22V12" />
+      <Path d="M12 12C10 9 7 7 4 7c0 3 2 6 5 7" />
+      <Path d="M12 12C14 9 17 7 20 7c0 3-2 6-5 7" />
     </Svg>
   );
 }
@@ -99,10 +97,10 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="challenges"
+        name="focus"
         options={{
-          title: 'Challenges',
-          tabBarIcon: ({ color }) => <TrophyIcon color={color} />,
+          title: 'Focus',
+          tabBarIcon: ({ color }) => <FocusIcon color={color} />,
         }}
       />
       <Tabs.Screen
@@ -112,6 +110,8 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <UserIcon color={color} />,
         }}
       />
+      {/* Challenges content moved to Focus tab — keep route alive but hide from tab bar */}
+      <Tabs.Screen name="challenges" options={{ href: null }} />
     </Tabs>
   );
 }

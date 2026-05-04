@@ -8,11 +8,16 @@ import type { ClassificationResult, FeedHealthLevel, Streak } from './types';
 export function calculateFeedScore(classifications: ClassificationResult[]): number {
   if (classifications.length === 0) return 0;
 
-  const suggestiveCount = classifications.filter(
-    (c) =>
-      (NSFW_THRESHOLDS.suggestiveCategories as readonly string[]).includes(c.category) &&
-      c.confidence >= NSFW_THRESHOLDS.suggestive
-  ).length;
+  const suggestiveCount = classifications.filter((c) => {
+    if (!(NSFW_THRESHOLDS.suggestiveCategories as readonly string[]).includes(c.category)) {
+      return false;
+    }
+    // Use the lower threshold for 'sexy' category
+    const threshold = c.category === 'sexy'
+      ? NSFW_THRESHOLDS.suggestiveSexy
+      : NSFW_THRESHOLDS.suggestive;
+    return c.confidence >= threshold;
+  }).length;
 
   return Math.round((suggestiveCount / classifications.length) * 100);
 }

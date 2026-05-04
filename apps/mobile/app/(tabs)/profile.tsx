@@ -21,7 +21,7 @@ export default function ProfileScreen() {
   const streak = useCleanupStore((s) => s.streak);
   const progress = useCleanupStore((s) => s.progress);
   const audits = useAuditStore((s) => s.audits);
-  const { tier, isPro } = useSubscriptionStore();
+  const { tier, proAccess } = useSubscriptionStore();
 
   // Evaluate badge unlock status
   const badges = useMemo(
@@ -77,8 +77,8 @@ export default function ProfileScreen() {
             <View style={styles.userInfo}>
               <Text style={styles.userName}>{user?.display_name || 'User'}</Text>
               <Text style={styles.userEmail}>{user?.email}</Text>
-              <View style={[styles.tierBadge, isPro() && styles.tierBadgePro]}>
-                <Text style={[styles.tierText, isPro() && styles.tierTextPro]}>
+              <View style={[styles.tierBadge, proAccess && styles.tierBadgePro]}>
+                <Text style={[styles.tierText, proAccess && styles.tierTextPro]}>
                   {tier.toUpperCase()}
                 </Text>
               </View>
@@ -137,7 +137,7 @@ export default function ProfileScreen() {
         </View>
 
         {/* Upgrade */}
-        {!isPro() && (
+        {!proAccess && (
           <View style={styles.section}>
             <CardDark>
               <TouchableOpacity onPress={handleUpgrade} style={styles.upgradeInner}>

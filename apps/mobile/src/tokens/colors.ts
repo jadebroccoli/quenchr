@@ -31,4 +31,5 @@ export const colors = {
   // Accents
   gold: '#C4922A',
   red: '#B83F3F',
+  green: '#4E7A3E',  // matches pure_feed health level — used for clean/safe indicators
 } as const;

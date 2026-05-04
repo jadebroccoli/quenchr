@@ -2,7 +2,7 @@ import { File as ExpoFile } from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { supabase } from '@quenchr/supabase-client';
 import { AI_INSIGHTS_CONFIG } from '@quenchr/shared';
-import type { AuditImageResult, AIInsightsResult, Platform } from '@quenchr/shared';
+import type { AIInsightsResult, Platform } from '@quenchr/shared';
 import { useSettingsStore } from '../stores/settings-store';
 
 // ── Constants ──
@@ -18,17 +18,10 @@ const FUNCTION_NAME = 'ai-feed-analysis';
 
 // ── Public API ──
 
-/**
- * Select the most suggestive frames from the NSFWJS results.
- * Sorted by suggestive_percentage descending, capped at MAX_FRAMES.
- */
-export function selectFlaggedFrames(
-  imageResults: AuditImageResult[]
-): AuditImageResult[] {
-  return imageResults
-    .filter((r) => r.suggestive_percentage > SUGGESTIVE_THRESHOLD)
-    .sort((a, b) => b.suggestive_percentage - a.suggestive_percentage)
-    .slice(0, MAX_FRAMES);
+/** Minimal frame reference for AI insights — just needs index and score */
+export interface FlaggedFrame {
+  image_index: number;
+  suggestive_percentage: number;
 }
 
 /**
@@ -37,19 +30,14 @@ export function selectFlaggedFrames(
  * Converts frames to base64, sends to the Supabase Edge Function,
  * which proxies the call to Claude Haiku vision. Returns structured
  * AI insights for the Pro results screen.
- *
- * @param flaggedFrames - Frames that passed the suggestive threshold
- * @param frameUris - Original image URIs (indexed by image_index)
- * @param platform - Platform being audited
- * @param feedScore - NSFWJS feed score
- * @param auditId - Optional ID of the persisted FeedAudit record
  */
 export async function analyzeWithAI(
-  flaggedFrames: AuditImageResult[],
+  flaggedFrames: FlaggedFrame[],
   frameUris: string[],
   platform: Platform,
   feedScore: number,
   auditId?: string,
+  devMode?: boolean,
 ): Promise<AIInsightsResult> {
   // Build base64 frames payload (parallel conversion for speed)
   const frames = await Promise.all(
@@ -60,20 +48,30 @@ export async function analyzeWithAI(
     }))
   );
 
-  // Call Supabase Edge Function (auth token auto-attached)
-  const devMode = useSettingsStore.getState().devMode;
+  // Use passed devMode flag, fall back to store
+  const isDevMode = devMode ?? useSettingsStore.getState().devMode;
   const { data, error } = await supabase.functions.invoke(FUNCTION_NAME, {
     body: {
       frames,
       platform,
       feed_score: feedScore,
       audit_id: auditId,
+      dev_mode: isDevMode || undefined,
     },
-    headers: devMode ? { 'x-quenchr-dev-mode': 'true' } : undefined,
+    headers: isDevMode ? { 'x-quenchr-dev-mode': 'true' } : undefined,
   });
 
   if (error) {
-    throw new Error(`AI analysis failed: ${error.message}`);
+    // Extract actual error body from FunctionsHttpError when possible
+    let detail = error.message;
+    try {
+      const ctx = (error as any).context;
+      if (ctx && typeof ctx.json === 'function') {
+        const body = await ctx.json();
+        detail = body?.error ?? detail;
+      }
+    } catch { /* ignore parse failures */ }
+    throw new Error(`AI analysis failed: ${detail}`);
   }
 
   if (!data?.success) {

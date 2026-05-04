@@ -3,6 +3,18 @@ import { View, ActivityIndicator, StyleSheet, Platform } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
+import * as Notifications from 'expo-notifications';
+
+// Ensure foreground notifications appear as banners
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+});
 
 // RevenueCat requires native module — guard for dev builds without it
 let Purchases: any = null;
@@ -23,6 +35,8 @@ import {
 import { useAuthStore } from '../src/stores/auth-store';
 import { useSubscriptionStore } from '../src/stores/subscription-store';
 import { useSettingsStore } from '../src/stores/settings-store';
+import { useMindfulStore } from '../src/stores/mindful-store';
+import { useFocusStore } from '../src/stores/focus-store';
 import { supabase } from '@quenchr/supabase-client';
 import { colors } from '../src/tokens';
 
@@ -33,6 +47,8 @@ export default function RootLayout() {
   const setTier = useSubscriptionStore((s) => s.setTier);
   const loadTrialState = useSubscriptionStore((s) => s.loadTrialState);
   const loadSettings = useSettingsStore((s) => s.loadSettings);
+  const loadMindful = useMindfulStore((s) => s.loadMindful);
+  const loadFocus = useFocusStore((s) => s.loadFocus);
 
   const [fontsLoaded] = useFonts({
     DMSerifDisplay_400Regular,
@@ -97,6 +113,8 @@ export default function RootLayout() {
 
   async function loadUser(userId: string) {
     loadSettings();
+    loadMindful();
+    loadFocus();
     loadTrialState();
     const { data } = await supabase.from('users').select('*').eq('id', userId).single();
     if (data) {
@@ -138,6 +156,21 @@ export default function RootLayout() {
             presentation: 'modal',
             animation: 'slide_from_bottom',
             contentStyle: { backgroundColor: colors.char },
+          }}
+        />
+        <Stack.Screen
+          name="mindful"
+          options={{
+            presentation: 'fullScreenModal',
+            animation: 'fade',
+            contentStyle: { backgroundColor: colors.char },
+          }}
+        />
+        <Stack.Screen
+          name="focus-session"
+          options={{
+            animation: 'slide_from_bottom',
+            contentStyle: { backgroundColor: colors.cream },
           }}
         />
       </Stack>

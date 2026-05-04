@@ -83,6 +83,18 @@ export async function getLatestFeedAudit(userId: string, platform: Platform) {
     .single();
 }
 
+// ── AI Insights ──
+
+export async function getAIInsightsByAuditId(auditId: string) {
+  return supabase
+    .from('ai_insights')
+    .select('insights_json')
+    .eq('audit_id', auditId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+}
+
 // ── Cleanup Tasks ──
 
 export async function getCleanupTasks(platform: Platform, includePremium = false) {

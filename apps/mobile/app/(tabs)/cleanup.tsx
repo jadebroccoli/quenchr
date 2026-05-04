@@ -63,7 +63,7 @@ export default function CleanupScreen() {
   const setStreak = useCleanupStore((s) => s.setStreak);
 
   const currentAudit = useAuditStore((s) => s.currentAudit);
-  const isPro = useSubscriptionStore((s) => s.isPro());
+  const isPro = useSubscriptionStore((s) => s.proAccess);
   const limits = useSubscriptionStore((s) => s.limits);
 
   const [screenState, setScreenState] = useState<ScreenState>('launcher');

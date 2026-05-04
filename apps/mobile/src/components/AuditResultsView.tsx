@@ -42,10 +42,12 @@ export function AuditResultsView({ onNewAudit, onStartCleanup }: Props) {
 
   const audit = currentAudit;
   const breakdown = audit ? getAuditBreakdown(audit) : null;
-  // Use the stored feed_score as canonical source — it's written by NSFWJS
-  // and then overwritten by Haiku for Pro users, so it's always up-to-date.
+  // Raw score from Haiku. When AI insights finish, they return an adjusted_feed_score
+  // that corrects false positives. Use the adjusted score for everything the user sees
+  // so the headline, badge, and number all agree with the AI narrative.
   const feedScore = audit?.feed_score ?? 0;
-  const health = getFeedHealthInfo(feedScore);
+  const adjustedScore = aiInsights.result?.adjusted_feed_score ?? feedScore;
+  const health = getFeedHealthInfo(adjustedScore);
 
   const platformLabel = audit ? PLATFORMS[audit.platform].label : '';
   const pageName = audit?.platform === 'instagram' ? 'Explore' : 'For You Page';
@@ -75,7 +77,8 @@ export function AuditResultsView({ onNewAudit, onStartCleanup }: Props) {
     ]).start();
   }, []);
 
-  // Interpolated score number
+  // Interpolated score number — animates to raw score first, then snaps to
+  // adjusted score when AI insights arrive (AnimatedScoreText handles the snap)
   const displayScore = scoreAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [0, feedScore],
@@ -99,7 +102,7 @@ export function AuditResultsView({ onNewAudit, onStartCleanup }: Props) {
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Score counter */}
-        <AnimatedScoreText value={displayScore} targetScore={feedScore} color={health.color} />
+        <AnimatedScoreText value={displayScore} targetScore={adjustedScore} color={health.color} />
 
         {/* Haiku scanning indicator */}
         {haikuScanStatus === 'scanning' && (
@@ -124,7 +127,7 @@ export function AuditResultsView({ onNewAudit, onStartCleanup }: Props) {
         <Animated.Text style={[styles.hookText, { opacity: fadeAnim }]}>
           Your {platformLabel} {pageName} is{' '}
           <Text style={{ color: health.color }}>
-            {feedScore}% thirst traps
+            {adjustedScore}% thirst traps
           </Text>
         </Animated.Text>
 
@@ -148,7 +151,7 @@ export function AuditResultsView({ onNewAudit, onStartCleanup }: Props) {
             <BreakdownBar
               label="Clean"
               percent={breakdown.cleanPercent}
-              color={colors.brown}
+              color={colors.green}
               anim={bar3Anim}
             />
           </View>
@@ -167,7 +170,7 @@ export function AuditResultsView({ onNewAudit, onStartCleanup }: Props) {
             <Text style={styles.statLabel}>Flagged</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={[styles.statValue, { color: colors.brown }]}>
+            <Text style={[styles.statValue, { color: colors.green }]}>
               {audit?.neutral_detected ?? 0}
             </Text>
             <Text style={styles.statLabel}>Clean</Text>

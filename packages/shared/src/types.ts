@@ -1,6 +1,6 @@
 export type Platform = 'instagram' | 'tiktok' | 'twitter' | 'reddit' | 'youtube';
 
-export type SubscriptionTier = 'free' | 'pro';
+export type SubscriptionTier = 'free' | 'trial' | 'pro';
 
 export type TaskDifficulty = 'easy' | 'medium' | 'hard';
 
@@ -21,6 +21,7 @@ export interface User {
   display_name: string | null;
   avatar_url: string | null;
   subscription_tier: SubscriptionTier;
+  trial_started_at: string | null;
   onboarding_complete: boolean;
   created_at: string;
 }
@@ -42,6 +43,7 @@ export interface FeedAudit {
   sexy_detected: number;
   neutral_detected: number;
   feed_score: number;
+  scan_type?: 'nsfwjs' | 'haiku';
   created_at: string;
 }
 

@@ -51,7 +51,7 @@ export default function OnboardingScreen() {
     useAuthStore.getState().setUser({ ...user, onboarding_complete: true });
     setLoading(false);
 
-    router.replace('/(tabs)/dashboard');
+    router.replace('/(auth)/dependency-quiz');
   }
 
   return (

@@ -145,12 +145,15 @@ export async function scanImages(
     }
 
     // Per-image suggestive percentage
-    const suggestiveCount = regionResults.filter(
-      (r) =>
-        (NSFW_THRESHOLDS.suggestiveCategories as readonly string[]).includes(
-          r.classification.category
-        ) && r.classification.confidence >= NSFW_THRESHOLDS.suggestive
-    ).length;
+    const suggestiveCount = regionResults.filter((r) => {
+      if (!(NSFW_THRESHOLDS.suggestiveCategories as readonly string[]).includes(
+        r.classification.category
+      )) return false;
+      const threshold = r.classification.category === 'sexy'
+        ? NSFW_THRESHOLDS.suggestiveSexy
+        : NSFW_THRESHOLDS.suggestive;
+      return r.classification.confidence >= threshold;
+    }).length;
 
     imageResults.push({
       image_index: imgIdx,
@@ -224,14 +227,58 @@ async function classifyRegion(regionUri: string): Promise<ClassificationResult> 
 
   try {
     const predictions = await model!.classify(imageTensor as tf.Tensor3D);
+    const suggestiveCats = NSFW_THRESHOLDS.suggestiveCategories as readonly string[];
 
     // Top prediction
     const top = predictions.reduce((a, b) => (a.probability > b.probability ? a : b));
+    const topCategory = top.className.toLowerCase() as NSFWCategory;
+    const topConfidence = top.probability;
 
-    return {
-      category: top.className.toLowerCase() as NSFWCategory,
-      confidence: top.probability,
-    };
+    // Check 1: Top prediction is directly suggestive
+    if (suggestiveCats.includes(topCategory)) {
+      const threshold = topCategory === 'sexy'
+        ? NSFW_THRESHOLDS.suggestiveSexy
+        : NSFW_THRESHOLDS.suggestive;
+      if (topConfidence >= threshold) {
+        return { category: topCategory, confidence: topConfidence };
+      }
+    }
+
+    // Check 2: Combined suggestive confidence across all predictions.
+    // Catches images where NSFWJS splits confidence across sexy + porn + hentai.
+    const combinedSuggestive = predictions
+      .filter((p) => suggestiveCats.includes(p.className.toLowerCase()))
+      .reduce((sum, p) => sum + p.probability, 0);
+
+    if (combinedSuggestive >= NSFW_THRESHOLDS.suggestiveCombined) {
+      // Return the highest suggestive category
+      const bestSuggestive = predictions
+        .filter((p) => suggestiveCats.includes(p.className.toLowerCase()))
+        .reduce((a, b) => (a.probability > b.probability ? a : b));
+      return {
+        category: bestSuggestive.className.toLowerCase() as NSFWCategory,
+        confidence: combinedSuggestive,
+      };
+    }
+
+    // Check 3: 'drawing' category absorbing suggestive confidence.
+    // Anime/illustration content often gets classified as 'drawing' when
+    // it should be flagged.
+    const drawingProb = predictions.find(
+      (p) => p.className.toLowerCase() === 'drawing'
+    )?.probability ?? 0;
+    if (drawingProb > 0.1 && drawingProb + combinedSuggestive >= NSFW_THRESHOLDS.drawingCombined) {
+      const bestSuggestive = predictions
+        .filter((p) => suggestiveCats.includes(p.className.toLowerCase()))
+        .reduce((a, b) => (a.probability > b.probability ? a : b));
+      return {
+        category: bestSuggestive.className.toLowerCase() as NSFWCategory,
+        confidence: drawingProb + combinedSuggestive,
+      };
+    }
+
+    // Not suggestive — return the top prediction as-is
+    return { category: topCategory, confidence: topConfidence };
   } finally {
     imageTensor.dispose();
   }

@@ -42,7 +42,7 @@ export function ScanningProgressView() {
     }).start();
   }, [scanProgress?.percentComplete]);
 
-  const phaseLabel = getPhaseLabel(scanProgress);
+  const phaseLabel = getPhaseLabel(scanProgress?.phase);
   const percent = scanProgress?.percentComplete ?? 0;
 
   return (
@@ -50,7 +50,7 @@ export function ScanningProgressView() {
       <View style={styles.content}>
         {/* Pulsing scan icon */}
         <Animated.Text style={[styles.scanIcon, { transform: [{ scale: pulseAnim }] }]}>
-          🔍
+          {scanProgress?.phase === 'analyzing' ? '✨' : '🔍'}
         </Animated.Text>
 
         <Text style={styles.title}>Scanning Your Feed</Text>
@@ -73,18 +73,11 @@ export function ScanningProgressView() {
 
         <Text style={styles.percentText}>{percent}%</Text>
 
-        {/* Region counter */}
-        {scanProgress && scanProgress.phase === 'classifying' && (
-          <Text style={styles.regionCounter}>
-            Region {scanProgress.currentRegion} of {scanProgress.totalRegions}
-          </Text>
-        )}
-
         {/* Privacy note */}
         <View style={styles.privacyCard}>
           <Text style={styles.privacyIcon}>🔒</Text>
           <Text style={styles.privacyText}>
-            All analysis happens on your device. No images are uploaded.
+            Your images are analyzed by Quenchr AI. Never stored or shared.
           </Text>
         </View>
 
@@ -97,18 +90,16 @@ export function ScanningProgressView() {
   );
 }
 
-function getPhaseLabel(progress: ReturnType<typeof useAuditStore.getState>['scanProgress']): string {
-  if (!progress) return 'Preparing...';
-
-  switch (progress.phase) {
-    case 'initializing':
-      return 'Loading AI model...';
-    case 'segmenting':
-      return `Preparing image ${progress.currentImage} of ${progress.totalImages}...`;
-    case 'classifying':
-      return `Scanning image ${progress.currentImage} of ${progress.totalImages}...`;
+function getPhaseLabel(phase?: string): string {
+  switch (phase) {
+    case 'uploading':
+      return 'Preparing your screenshots...';
+    case 'analyzing':
+      return 'Quenchr AI is analyzing your feed...';
     case 'complete':
       return 'Analysis complete!';
+    default:
+      return 'Preparing...';
   }
 }
 
@@ -156,10 +147,6 @@ const styles = StyleSheet.create({
     fontSize: 40,
     lineHeight: 40,
     color: colors.brown,
-  },
-  regionCounter: {
-    ...typ.body,
-    color: colors.ink4,
   },
   privacyCard: {
     flexDirection: 'row',
