@@ -1,0 +1,39 @@
+# EAS Build archive exclusions
+# Keeps the upload lean — EAS only needs apps/mobile + packages/
+
+# Old Android build artifacts (635 MB — largest offender)
+*.aab
+*.apk
+
+# Screenshot / marketing asset archives
+*.zip
+quenchr-screenshots-v4/
+quenchr-store-screenshots/
+screenshots/
+preview/
+
+# Root-level design/brand assets (app uses apps/mobile/assets/*)
+# Leading slash anchors to repo root only — does NOT exclude apps/mobile/assets/
+/assets/
+quenchr-feature-graphic.png
+quenchr-logos.zip
+quenchr-paywall.zip
+
+# Supabase edge functions — not needed for the mobile build
+supabase/
+
+# Docs & notes
+*.md
+*.html
+quenchr.md
+HANDOFF.md
+memory.md
+quenchr-design-spec.md
+
+# Git history (EAS adds this by default but being explicit)
+.git/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.log
