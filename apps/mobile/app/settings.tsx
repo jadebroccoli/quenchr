@@ -11,7 +11,7 @@ import { CardLight, CardDark, SectionDivider } from '../src/components/ui';
 
 export default function SettingsScreen() {
   const { tier } = useSubscriptionStore();
-  const { devMode, setDevMode } = useSettingsStore();
+  const { devMode, setDevMode, frameRetentionConsent, setFrameRetentionConsent } = useSettingsStore();
   const { personalMessage, weeklyStats, setPersonalMessage } = useMindfulStore();
 
   const [messageInput, setMessageInput] = useState(personalMessage);
@@ -141,13 +141,50 @@ export default function SettingsScreen() {
             </TouchableOpacity>
           </CardLight>
 
-          {/* Data */}
+          {/* Privacy */}
           <Text style={styles.sectionLabel}>PRIVACY</Text>
           <CardDark>
             <Text style={styles.darkNote}>
               All scan data stays on your device. Only anonymized scores are synced to your account.
             </Text>
           </CardDark>
+
+          {/* AI Training consent */}
+          <Text style={styles.sectionLabel}>DATA & AI TRAINING</Text>
+          <CardLight>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Share flagged frames</Text>
+                <Text style={styles.settingDesc}>
+                  After each scan, up to 5 flagged images are anonymously uploaded to help train Quenchr's on-device AI model. No faces, names, or account data are ever stored — only the frame pixels and the category our scanner assigned.
+                </Text>
+              </View>
+              <Switch
+                value={frameRetentionConsent}
+                onValueChange={(enabled) => {
+                  if (enabled) {
+                    Alert.alert(
+                      'Help train Quenchr AI',
+                      'When enabled, up to 5 flagged frames from each scan are anonymously stored to improve our on-device content classifier. Frame pixels only — no usernames, profile info, or identifying data.\n\nYou can turn this off any time.',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Enable', onPress: () => setFrameRetentionConsent(true) },
+                      ],
+                    );
+                  } else {
+                    setFrameRetentionConsent(false);
+                  }
+                }}
+                trackColor={{ false: colors.cream3, true: colors.brown }}
+                thumbColor={colors.cream}
+              />
+            </View>
+            {frameRetentionConsent && (
+              <View style={styles.consentActiveBadge}>
+                <Text style={styles.consentActiveBadgeText}>CONTRIBUTING TO AI TRAINING</Text>
+              </View>
+            )}
+          </CardLight>
         </View>
       </ScrollView>
 
@@ -298,6 +335,18 @@ const styles = StyleSheet.create({
   devBadgeText: {
     ...typ.label,
     color: colors.gold,
+  },
+  consentActiveBadge: {
+    marginTop: 12,
+    backgroundColor: colors.brown + '15',
+    borderRadius: radius.badge,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    alignSelf: 'flex-start',
+  },
+  consentActiveBadgeText: {
+    ...typ.label,
+    color: colors.brown,
   },
   darkNote: {
     ...typ.body,

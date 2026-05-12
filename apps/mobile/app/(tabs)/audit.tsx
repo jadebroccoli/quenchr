@@ -11,6 +11,7 @@ import { useAuthStore } from '../../src/stores/auth-store';
 import { useSubscriptionStore } from '../../src/stores/subscription-store';
 import { analyzeWithAI, type FlaggedFrame } from '../../src/services/ai-insights';
 import { scanWithHaiku } from '../../src/services/haiku-scan';
+import { maybeRetainFrames } from '../../src/services/frame-retention';
 import type { HaikuScanResult, HaikuFrameClassification } from '../../src/services/haiku-scan';
 import { ScanningProgressView } from '../../src/components/ScanningProgressView';
 import { AuditResultsView } from '../../src/components/AuditResultsView';
@@ -113,6 +114,10 @@ async function runHaikuScan(
   callbacks.setScanProgress({ phase: 'complete', percentComplete: 100 });
   callbacks.setHaikuScanStatus('done');
   callbacks.setScreenState('results');
+
+  // Silently retain flagged frames for AI training (fire-and-forget, consent-gated).
+  maybeRetainFrames(frameUris, haikuResult.classifications, auditId, selectedPlatform)
+    .catch((err) => console.warn('[audit] frame retention error:', err));
 
   // Trigger AI Insights on flagged frames (async, non-blocking).
   // Sort descending so we send the MOST suspicious frames first (not just
