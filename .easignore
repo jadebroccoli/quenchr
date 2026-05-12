@@ -30,6 +30,9 @@ HANDOFF.md
 memory.md
 quenchr-design-spec.md
 
+# Claude Code session data (large JSON transcripts)
+.claude/
+
 # Git history (EAS adds this by default but being explicit)
 .git/
 
