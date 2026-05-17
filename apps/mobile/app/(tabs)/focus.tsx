@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   Modal,
   Alert,
-  Switch,
   TextInput,
   ActivityIndicator,
 } from 'react-native';
@@ -21,7 +20,6 @@ import { useAuditStore } from '../../src/stores/audit-store';
 import { useCleanupStore } from '../../src/stores/cleanup-store';
 import { useSubscriptionStore } from '../../src/stores/subscription-store';
 import { useFocusStore } from '../../src/stores/focus-store';
-import { useSettingsStore } from '../../src/stores/settings-store';
 import { useMindfulStore } from '../../src/stores/mindful-store';
 import { useChallengesInit } from '../../src/hooks/useChallengesInit';
 import { computeCleanStreak } from '../../src/utils/scanStreak';
@@ -46,7 +44,6 @@ export default function FocusScreen() {
   const [oasisInfoVisible, setOasisInfoVisible] = useState(false);
   const [shortcutGuideVisible, setShortcutGuideVisible] = useState(false);
 
-  const { frameRetentionConsent, setFrameRetentionConsent } = useSettingsStore();
   const { personalMessage, weeklyStats, setPersonalMessage } = useMindfulStore();
   const [messageInput, setMessageInput] = useState(personalMessage);
 
@@ -377,51 +374,6 @@ export default function FocusScreen() {
             <TouchableOpacity style={styles.saveBtn} onPress={handleSaveMessage} activeOpacity={0.85}>
               <Text style={styles.saveBtnText}>Save message</Text>
             </TouchableOpacity>
-          </CardDark>
-
-          {/* ── Privacy ── */}
-          <Text style={styles.sectionLabel}>PRIVACY</Text>
-          <CardDark>
-            <Text style={styles.privacyNote}>
-              All scan data stays on your device. Only anonymized scores are synced to your account.
-            </Text>
-          </CardDark>
-
-          {/* ── Data & AI Training ── */}
-          <Text style={styles.sectionLabel}>DATA & AI TRAINING</Text>
-          <CardDark>
-            <View style={styles.consentRow}>
-              <View style={styles.consentInfo}>
-                <Text style={styles.consentLabel}>Share flagged frames</Text>
-                <Text style={styles.consentDesc}>
-                  After each scan, up to 5 flagged images are anonymously uploaded to help train Quenchr's on-device AI. Frame pixels only — no usernames or identifying data.
-                </Text>
-              </View>
-              <Switch
-                value={frameRetentionConsent}
-                onValueChange={(enabled) => {
-                  if (enabled) {
-                    Alert.alert(
-                      'Help train Quenchr AI',
-                      'Up to 5 flagged frames from each scan are anonymously stored to improve our on-device content classifier. Frame pixels only — no usernames, profile info, or identifying data.\n\nYou can turn this off any time.',
-                      [
-                        { text: 'Cancel', style: 'cancel' },
-                        { text: 'Enable', onPress: () => setFrameRetentionConsent(true) },
-                      ],
-                    );
-                  } else {
-                    setFrameRetentionConsent(false);
-                  }
-                }}
-                trackColor={{ false: colors.char3, true: colors.brown }}
-                thumbColor={colors.lt}
-              />
-            </View>
-            {frameRetentionConsent && (
-              <View style={styles.consentActiveBadge}>
-                <Text style={styles.consentActiveBadgeText}>CONTRIBUTING TO AI TRAINING</Text>
-              </View>
-            )}
           </CardDark>
 
         </View>
@@ -827,45 +779,6 @@ const styles = StyleSheet.create({
   saveBtnText: {
     ...typ.btn,
     color: colors.lt,
-  },
-
-  // Privacy
-  privacyNote: {
-    ...typ.body,
-    color: colors.lt3,
-    lineHeight: 22,
-  },
-
-  // AI Training consent
-  consentRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  consentInfo: {
-    flex: 1,
-  },
-  consentLabel: {
-    ...typ.btn,
-    color: colors.lt,
-  },
-  consentDesc: {
-    ...typ.bodySmall,
-    color: colors.lt3,
-    marginTop: 4,
-    lineHeight: 18,
-  },
-  consentActiveBadge: {
-    marginTop: 12,
-    backgroundColor: colors.brown + '25',
-    borderRadius: radius.badge,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    alignSelf: 'flex-start',
-  },
-  consentActiveBadgeText: {
-    ...typ.label,
-    color: colors.brown,
   },
 
   // Shortcut guide modal

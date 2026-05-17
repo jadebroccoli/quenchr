@@ -1,15 +1,15 @@
-import { View, Text, StyleSheet, Switch, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Switch, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import Svg, { Path, Circle as SvgCircle } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 import { useSubscriptionStore } from '../src/stores/subscription-store';
 import { useSettingsStore } from '../src/stores/settings-store';
 import { colors, type as typ, spacing, radius } from '../src/tokens';
-import { CardLight, SectionDivider } from '../src/components/ui';
+import { CardLight, CardDark, SectionDivider } from '../src/components/ui';
 
 export default function SettingsScreen() {
   const { tier } = useSubscriptionStore();
-  const { devMode, setDevMode } = useSettingsStore();
+  const { devMode, setDevMode, frameRetentionConsent, setFrameRetentionConsent } = useSettingsStore();
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -78,6 +78,51 @@ export default function SettingsScreen() {
               <Text style={styles.settingLabel}>Build</Text>
               <Text style={styles.settingValue}>Dev Client</Text>
             </View>
+          </CardLight>
+
+          {/* Privacy */}
+          <Text style={styles.sectionLabel}>PRIVACY</Text>
+          <CardDark>
+            <Text style={styles.darkNote}>
+              All scan data stays on your device. Only anonymized scores are synced to your account.
+            </Text>
+          </CardDark>
+
+          {/* AI Training consent */}
+          <Text style={styles.sectionLabel}>DATA & AI TRAINING</Text>
+          <CardLight>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Share flagged frames</Text>
+                <Text style={styles.settingDesc}>
+                  After each scan, up to 5 flagged images are anonymously uploaded to help train Quenchr's on-device AI model. Frame pixels only — no usernames or identifying data.
+                </Text>
+              </View>
+              <Switch
+                value={frameRetentionConsent}
+                onValueChange={(enabled) => {
+                  if (enabled) {
+                    Alert.alert(
+                      'Help train Quenchr AI',
+                      'Up to 5 flagged frames from each scan are anonymously stored to improve our on-device content classifier. Frame pixels only — no usernames, profile info, or identifying data.\n\nYou can turn this off any time.',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Enable', onPress: () => setFrameRetentionConsent(true) },
+                      ],
+                    );
+                  } else {
+                    setFrameRetentionConsent(false);
+                  }
+                }}
+                trackColor={{ false: colors.cream3, true: colors.brown }}
+                thumbColor={colors.cream}
+              />
+            </View>
+            {frameRetentionConsent && (
+              <View style={styles.consentActiveBadge}>
+                <Text style={styles.consentActiveBadgeText}>CONTRIBUTING TO AI TRAINING</Text>
+              </View>
+            )}
           </CardLight>
         </View>
       </ScrollView>
@@ -177,5 +222,22 @@ const styles = StyleSheet.create({
   devBadgeText: {
     ...typ.label,
     color: colors.gold,
+  },
+  darkNote: {
+    ...typ.body,
+    color: colors.lt3,
+    lineHeight: 22,
+  },
+  consentActiveBadge: {
+    marginTop: 12,
+    backgroundColor: colors.brown + '15',
+    borderRadius: radius.badge,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    alignSelf: 'flex-start',
+  },
+  consentActiveBadgeText: {
+    ...typ.label,
+    color: colors.brown,
   },
 });
