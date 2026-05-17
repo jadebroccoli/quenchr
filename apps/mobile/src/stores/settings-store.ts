@@ -5,8 +5,10 @@ import { useSubscriptionStore } from './subscription-store';
 interface SettingsState {
   devMode: boolean;
   frameRetentionConsent: boolean;
+  frameRetentionAsked: boolean;
   setDevMode: (enabled: boolean) => void;
   setFrameRetentionConsent: (enabled: boolean) => void;
+  setFrameRetentionAsked: (asked: boolean) => void;
   loadSettings: () => Promise<void>;
 }
 
@@ -24,6 +26,7 @@ async function persistSettings(partial: Partial<{ devMode: boolean; frameRetenti
 export const useSettingsStore = create<SettingsState>((set) => ({
   devMode: false,
   frameRetentionConsent: false,
+  frameRetentionAsked: false,
 
   setDevMode: async (enabled) => {
     set({ devMode: enabled });
@@ -37,6 +40,11 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     await persistSettings({ frameRetentionConsent: enabled });
   },
 
+  setFrameRetentionAsked: async (asked) => {
+    set({ frameRetentionAsked: asked });
+    await persistSettings({ frameRetentionAsked: asked });
+  },
+
   loadSettings: async () => {
     try {
       const raw = await AsyncStorage.getItem(SETTINGS_KEY);
@@ -44,7 +52,8 @@ export const useSettingsStore = create<SettingsState>((set) => ({
         const parsed = JSON.parse(raw);
         const devMode = parsed.devMode ?? false;
         const frameRetentionConsent = parsed.frameRetentionConsent ?? false;
-        set({ devMode, frameRetentionConsent });
+        const frameRetentionAsked = parsed.frameRetentionAsked ?? false;
+        set({ devMode, frameRetentionConsent, frameRetentionAsked });
         // Sync persisted dev mode to subscription store on app launch
         useSubscriptionStore.getState().setDevMode(devMode);
       }

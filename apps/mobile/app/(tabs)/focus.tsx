@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   Modal,
   Alert,
+  Switch,
+  TextInput,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,6 +21,8 @@ import { useAuditStore } from '../../src/stores/audit-store';
 import { useCleanupStore } from '../../src/stores/cleanup-store';
 import { useSubscriptionStore } from '../../src/stores/subscription-store';
 import { useFocusStore } from '../../src/stores/focus-store';
+import { useSettingsStore } from '../../src/stores/settings-store';
+import { useMindfulStore } from '../../src/stores/mindful-store';
 import { useChallengesInit } from '../../src/hooks/useChallengesInit';
 import { computeCleanStreak } from '../../src/utils/scanStreak';
 import { OasisVisual } from '../../src/components/ui/OasisVisual';
@@ -40,6 +44,16 @@ export default function FocusScreen() {
   const router = useRouter();
   const [panicVisible, setPanicVisible] = useState(false);
   const [oasisInfoVisible, setOasisInfoVisible] = useState(false);
+  const [shortcutGuideVisible, setShortcutGuideVisible] = useState(false);
+
+  const { frameRetentionConsent, setFrameRetentionConsent } = useSettingsStore();
+  const { personalMessage, weeklyStats, setPersonalMessage } = useMindfulStore();
+  const [messageInput, setMessageInput] = useState(personalMessage);
+
+  function handleSaveMessage() {
+    setPersonalMessage(messageInput.trim());
+    Alert.alert('Saved', 'Your message will appear on the Mindful Moment screen.');
+  }
 
   // Auth
   const user = useAuthStore((s) => s.user);
@@ -316,6 +330,100 @@ export default function FocusScreen() {
               </>
             )}
           </View>
+          {/* ── Friction Pause ── */}
+          <Text style={styles.sectionLabel}>FRICTION PAUSE</Text>
+          <CardDark>
+            <Text style={styles.fpHeadline}>Intercept social media opens</Text>
+            <Text style={styles.fpBody}>
+              Create an iOS Shortcut that opens Quenchr before Instagram or TikTok — a breathing pause with your feed score and a personal message before you scroll.
+            </Text>
+            <TouchableOpacity
+              style={styles.fpGuideBtn}
+              onPress={() => setShortcutGuideVisible(true)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.fpGuideBtnText}>How to set up iOS Shortcut →</Text>
+            </TouchableOpacity>
+
+            <View style={styles.fpStatsRow}>
+              <View style={styles.fpStat}>
+                <Text style={styles.fpStatNum}>{weeklyStats.respected}</Text>
+                <Text style={styles.fpStatLabel}>PAUSES{'\n'}RESPECTED</Text>
+              </View>
+              <View style={styles.fpStatDivider} />
+              <View style={styles.fpStat}>
+                <Text style={[styles.fpStatNum, { color: colors.lt4 }]}>{weeklyStats.overridden}</Text>
+                <Text style={styles.fpStatLabel}>OPENED{'\n'}ANYWAY</Text>
+              </View>
+            </View>
+          </CardDark>
+
+          {/* ── Mindful Moment message ── */}
+          <CardDark>
+            <Text style={styles.fpHeadline}>Your pause message</Text>
+            <Text style={styles.fpBody}>
+              Appears when you try to open Instagram or TikTok. Leave blank for a smart default based on your feed score.
+            </Text>
+            <TextInput
+              style={styles.messageInput}
+              value={messageInput}
+              onChangeText={setMessageInput}
+              placeholder="e.g. I'm doing this for my relationship."
+              placeholderTextColor={colors.lt4}
+              multiline
+              maxLength={120}
+              returnKeyType="done"
+            />
+            <TouchableOpacity style={styles.saveBtn} onPress={handleSaveMessage} activeOpacity={0.85}>
+              <Text style={styles.saveBtnText}>Save message</Text>
+            </TouchableOpacity>
+          </CardDark>
+
+          {/* ── Privacy ── */}
+          <Text style={styles.sectionLabel}>PRIVACY</Text>
+          <CardDark>
+            <Text style={styles.privacyNote}>
+              All scan data stays on your device. Only anonymized scores are synced to your account.
+            </Text>
+          </CardDark>
+
+          {/* ── Data & AI Training ── */}
+          <Text style={styles.sectionLabel}>DATA & AI TRAINING</Text>
+          <CardDark>
+            <View style={styles.consentRow}>
+              <View style={styles.consentInfo}>
+                <Text style={styles.consentLabel}>Share flagged frames</Text>
+                <Text style={styles.consentDesc}>
+                  After each scan, up to 5 flagged images are anonymously uploaded to help train Quenchr's on-device AI. Frame pixels only — no usernames or identifying data.
+                </Text>
+              </View>
+              <Switch
+                value={frameRetentionConsent}
+                onValueChange={(enabled) => {
+                  if (enabled) {
+                    Alert.alert(
+                      'Help train Quenchr AI',
+                      'Up to 5 flagged frames from each scan are anonymously stored to improve our on-device content classifier. Frame pixels only — no usernames, profile info, or identifying data.\n\nYou can turn this off any time.',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Enable', onPress: () => setFrameRetentionConsent(true) },
+                      ],
+                    );
+                  } else {
+                    setFrameRetentionConsent(false);
+                  }
+                }}
+                trackColor={{ false: colors.char3, true: colors.brown }}
+                thumbColor={colors.lt}
+              />
+            </View>
+            {frameRetentionConsent && (
+              <View style={styles.consentActiveBadge}>
+                <Text style={styles.consentActiveBadgeText}>CONTRIBUTING TO AI TRAINING</Text>
+              </View>
+            )}
+          </CardDark>
+
         </View>
       </ScrollView>
 
@@ -343,6 +451,58 @@ export default function FocusScreen() {
             </Text>
           </View>
         </TouchableOpacity>
+      </Modal>
+
+      {/* iOS Shortcut setup guide modal */}
+      <Modal
+        visible={shortcutGuideVisible}
+        transparent
+        animationType="slide"
+        statusBarTranslucent
+        onRequestClose={() => setShortcutGuideVisible(false)}
+      >
+        <View style={styles.guideOverlay}>
+          <View style={styles.guideSheet}>
+            <View style={styles.guideHeader}>
+              <Text style={styles.guideTitle}>iOS Shortcut Setup</Text>
+              <TouchableOpacity onPress={() => setShortcutGuideVisible(false)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+                <Text style={styles.guideClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.guideSub}>
+                This takes about 2 minutes. Once set up, every time you open Instagram or TikTok, Quenchr intercepts for a 5-second breathing pause.
+              </Text>
+
+              {[
+                { n: '1', text: 'Open the Shortcuts app on your iPhone.' },
+                { n: '2', text: 'Tap Automation at the bottom of the screen.' },
+                { n: '3', text: 'Tap the + button (top right) → New Automation.' },
+                { n: '4', text: 'Scroll down and tap App → choose Instagram (or TikTok).' },
+                { n: '5', text: 'Make sure "Is Opened" is selected. Tap Next.' },
+                { n: '6', text: 'Tap New Blank Automation → + Add Action.' },
+                { n: '7', text: 'Search for "Open URLs" and add the action.' },
+                { n: '8', text: `Set the URL to:\nquenchr://mindful?platform=instagram\n(use "tiktok" for TikTok)` },
+                { n: '9', text: 'Turn OFF "Ask Before Running" so it fires automatically.' },
+                { n: '10', text: "Tap Done. That's it." },
+              ].map((step) => (
+                <View key={step.n} style={styles.guideStep}>
+                  <View style={styles.guideStepNum}>
+                    <Text style={styles.guideStepNumText}>{step.n}</Text>
+                  </View>
+                  <Text style={styles.guideStepText}>{step.text}</Text>
+                </View>
+              ))}
+
+              <View style={styles.guideNote}>
+                <Text style={styles.guideNoteText}>
+                  💡 iOS will show "Automation ran" in your notification centre. This is normal — you can mute it by long-pressing the notification.
+                </Text>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -581,6 +741,208 @@ const styles = StyleSheet.create({
     ...typ.caption,
     color: colors.lt4 ?? colors.lt3,
     marginTop: 6,
+  },
+
+  // Section label (light, for use on cream background)
+  sectionLabel: {
+    ...typ.label,
+    color: colors.ink3,
+    paddingTop: 4,
+  },
+
+  // Friction Pause card
+  fpHeadline: {
+    fontFamily: 'DMSerifDisplay_400Regular',
+    fontSize: 20,
+    color: colors.lt,
+    marginBottom: 8,
+  },
+  fpBody: {
+    ...typ.body,
+    color: colors.lt3,
+    lineHeight: 22,
+    marginBottom: 16,
+  },
+  fpGuideBtn: {
+    borderWidth: 1,
+    borderColor: colors.lt4,
+    borderRadius: radius.btn,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  fpGuideBtnText: {
+    ...typ.btn,
+    color: colors.lt2,
+  },
+  fpStatsRow: {
+    flexDirection: 'row',
+    backgroundColor: colors.char4,
+    borderRadius: radius.card,
+    overflow: 'hidden',
+  },
+  fpStat: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 14,
+  },
+  fpStatDivider: {
+    width: 1,
+    backgroundColor: colors.char3,
+    marginVertical: 10,
+  },
+  fpStatNum: {
+    fontFamily: 'DMSerifDisplay_400Regular',
+    fontSize: 32,
+    color: colors.gold,
+    lineHeight: 36,
+  },
+  fpStatLabel: {
+    ...typ.label,
+    color: colors.lt4,
+    fontSize: 9,
+    textAlign: 'center',
+    marginTop: 2,
+    lineHeight: 13,
+  },
+
+  // Mindful message
+  messageInput: {
+    ...typ.body,
+    color: colors.lt,
+    borderWidth: 1,
+    borderColor: colors.char3,
+    borderRadius: radius.card,
+    padding: 12,
+    marginBottom: 12,
+    minHeight: 64,
+    textAlignVertical: 'top',
+  },
+  saveBtn: {
+    backgroundColor: colors.brown,
+    borderRadius: radius.btn,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  saveBtnText: {
+    ...typ.btn,
+    color: colors.lt,
+  },
+
+  // Privacy
+  privacyNote: {
+    ...typ.body,
+    color: colors.lt3,
+    lineHeight: 22,
+  },
+
+  // AI Training consent
+  consentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  consentInfo: {
+    flex: 1,
+  },
+  consentLabel: {
+    ...typ.btn,
+    color: colors.lt,
+  },
+  consentDesc: {
+    ...typ.bodySmall,
+    color: colors.lt3,
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  consentActiveBadge: {
+    marginTop: 12,
+    backgroundColor: colors.brown + '25',
+    borderRadius: radius.badge,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    alignSelf: 'flex-start',
+  },
+  consentActiveBadgeText: {
+    ...typ.label,
+    color: colors.brown,
+  },
+
+  // Shortcut guide modal
+  guideOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  guideSheet: {
+    backgroundColor: colors.cream,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: spacing.pagePad,
+    paddingTop: 20,
+    paddingBottom: 40,
+    maxHeight: '90%',
+  },
+  guideHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  guideTitle: {
+    fontFamily: 'DMSerifDisplay_400Regular',
+    fontSize: 22,
+    color: colors.ink,
+  },
+  guideClose: {
+    ...typ.btn,
+    color: colors.ink3,
+    fontSize: 16,
+  },
+  guideSub: {
+    ...typ.body,
+    color: colors.ink2,
+    marginBottom: 20,
+    lineHeight: 22,
+  },
+  guideStep: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 14,
+    alignItems: 'flex-start',
+  },
+  guideStepNum: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.brown,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    marginTop: 1,
+  },
+  guideStepNumText: {
+    ...typ.label,
+    color: colors.lt,
+    fontSize: 11,
+  },
+  guideStepText: {
+    ...typ.body,
+    color: colors.ink,
+    flex: 1,
+    lineHeight: 22,
+  },
+  guideNote: {
+    backgroundColor: colors.cream2,
+    borderRadius: radius.card,
+    padding: 14,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  guideNoteText: {
+    ...typ.body,
+    color: colors.ink3,
+    lineHeight: 22,
   },
 
   // Oasis info modal
