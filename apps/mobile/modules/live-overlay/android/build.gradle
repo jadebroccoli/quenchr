@@ -1,6 +1,10 @@
-// 'expo-module' already applies com.android.library + kotlin-android internally.
-// Adding them again causes a "plugin already applied" Gradle error.
-apply plugin: 'expo-module'
+// Local Expo modules (linked via file: in package.json) are NOT published
+// through npm autolinking, so the 'expo-module' convenience plugin is not
+// registered in the Gradle plugin registry at evaluation time. Use the
+// explicit Android + Kotlin plugins instead and declare expo-modules-core
+// as a direct project dependency.
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
 
 android {
   namespace 'expo.modules.liveoverlay'
@@ -18,5 +22,6 @@ android {
   }
 }
 
-// expo-modules-core is provided automatically by the expo-module plugin;
-// no explicit dependency declaration needed.
+dependencies {
+  implementation project(':expo-modules-core')
+}
