@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, AppState, Alert, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, AppState, Alert, Animated, Easing, Platform as RNPlatform } from 'react-native';
+import * as Notifications from 'expo-notifications';
 import { PLATFORMS } from '@quenchr/shared';
 import type { Platform } from '@quenchr/shared';
 import { useAuditStore } from '../stores/audit-store';
@@ -12,6 +13,7 @@ import {
   cleanupRecording,
   forceStopIfRecording,
 } from '../services/screen-capture';
+import { startLiveAnalysis, stopLiveAnalysis } from '../services/live-scan-analyzer';
 import { colors, type as typ, radius, spacing } from '../tokens';
 
 /**
@@ -29,6 +31,105 @@ interface Props {
   onFramesExtracted: (frameUris: string[]) => void;
   onCancel: () => void;
 }
+
+// ── LiveRecordingOverlay ──────────────────────────────────────────────────────
+// Separate component so it can use hooks at the top level even though it's
+// conditionally rendered from LiveScanView (hooks can't be called in conditionals).
+
+interface OverlayProps {
+  platform: Platform;
+  pageName: string;
+  recordingDurationSeconds: number;
+  pulseAnim: Animated.Value;
+  formatDuration: (s: number) => string;
+  categoryColor: (category: string) => string;
+  onStop: () => void;
+}
+
+function LiveRecordingOverlay({
+  platform,
+  pageName,
+  recordingDurationSeconds,
+  pulseAnim,
+  formatDuration,
+  categoryColor,
+  onStop,
+}: OverlayProps) {
+  // Subscribe to live results — re-renders whenever burst data arrives
+  const liveScore = useAuditStore((s) => s.liveScore);
+  const liveClassifications = useAuditStore((s) => s.livePartialClassifications);
+
+  const flaggedCount = liveClassifications.filter(
+    (c) => c.category === 'suggestive' || c.category === 'explicit',
+  ).length;
+
+  const scoreColor =
+    liveScore === null    ? colors.ink4
+    : liveScore >= 60    ? '#E05252'
+    : liveScore >= 30    ? '#D4A017'
+    :                      '#4CAF50';
+
+  return (
+    <View style={styles.stateContainer}>
+      {/* Recording indicator row */}
+      <View style={styles.recordingHeader}>
+        <Animated.View style={[styles.redDot, { transform: [{ scale: pulseAnim }] }]} />
+        <Text style={styles.recordingLabel}>RECORDING</Text>
+        <Text style={styles.timerInline}>{formatDuration(recordingDurationSeconds)}</Text>
+      </View>
+
+      {/* Live score — placeholder until first burst resolves */}
+      <View style={styles.liveScoreBlock}>
+        {liveScore !== null ? (
+          <>
+            <Text style={[styles.liveScoreNum, { color: scoreColor }]}>{liveScore}</Text>
+            <Text style={styles.liveScoreLabel}>LIVE SCORE</Text>
+            {flaggedCount > 0 && (
+              <Text style={styles.liveFlaggedText}>
+                ⚠️ {flaggedCount} flagged frame{flaggedCount !== 1 ? 's' : ''} detected
+              </Text>
+            )}
+          </>
+        ) : (
+          <>
+            <Text style={styles.liveScorePending}>—</Text>
+            <Text style={styles.liveScoreLabel}>
+              {RNPlatform.OS === 'android'
+                ? 'First check in ~25s'
+                : 'Score ready when you stop'}
+            </Text>
+          </>
+        )}
+      </View>
+
+      {/* Heat strip — one dot per classified frame, newest on the right */}
+      {liveClassifications.length > 0 && (
+        <View style={styles.heatStrip}>
+          {liveClassifications.slice(-20).map((c, i) => (
+            <View
+              key={i}
+              style={[styles.heatDot, { backgroundColor: categoryColor(c.category) }]}
+            />
+          ))}
+        </View>
+      )}
+
+      {/* Instruction */}
+      <Text style={styles.recordingInstruction}>
+        Switch to {PLATFORMS[platform].label} and scroll your {pageName}.{'\n'}
+        {RNPlatform.OS === 'android'
+          ? 'Live score updates every ~25s as you scroll.'
+          : 'Your score will load when you come back.'}
+      </Text>
+
+      <TouchableOpacity style={styles.stopButton} onPress={onStop}>
+        <Text style={styles.stopButtonText}>Stop & Analyze</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+// ── LiveScanView ───────────────────────────────────────────────────────────────
 
 export function LiveScanView({ platform, onFramesExtracted, onCancel }: Props) {
   const {
@@ -129,19 +230,31 @@ export function LiveScanView({ platform, onFramesExtracted, onCancel }: Props) {
         return;
       }
 
+      // Request notification permission for the live overlay (best-effort, don't gate on it)
+      await Notifications.requestPermissionsAsync().catch(() => {});
+
       await startScreenRecording();
       setLiveScanState('recording');
       setRecordingDuration(0);
+
+      // Start the live analyzer: burst cycle (Android) + notification overlay (both)
+      startLiveAnalysis(platform).catch((err) =>
+        console.warn('[LiveScanView] startLiveAnalysis error:', err),
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to start recording';
       setError(message);
       setLiveScanState('idle');
     }
-  }, []);
+  }, [platform]);
 
   const handleStopAndAnalyze = useCallback(async () => {
     try {
       setLiveScanState('stopping');
+
+      // Stop the live analyzer and clear the notification overlay before stopping recording
+      await stopLiveAnalysis();
+
       const videoUri = await stopScreenRecording();
 
       setLiveScanState('extracting_frames');
@@ -184,29 +297,27 @@ export function LiveScanView({ platform, onFramesExtracted, onCancel }: Props) {
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
+  function categoryColor(category: string): string {
+    switch (category) {
+      case 'explicit':   return '#E05252';
+      case 'suggestive': return '#D4A017';
+      case 'mild':       return '#A0A0A0';
+      default:           return '#4CAF50';
+    }
+  }
+
   // ── Recording state ──
   if (liveScanState === 'recording') {
     return (
-      <View style={styles.stateContainer}>
-        <View style={styles.recordingHeader}>
-          <Animated.View style={[styles.redDot, { transform: [{ scale: pulseAnim }] }]} />
-          <Text style={styles.recordingLabel}>Recording</Text>
-        </View>
-
-        <Text style={styles.timer}>
-          {formatDuration(recordingDurationSeconds)}
-          <Text style={styles.timerCap}> / {formatDuration(MAX_RECORDING_SECONDS)}</Text>
-        </Text>
-
-        <Text style={styles.recordingInstruction}>
-          Switch to {PLATFORMS[platform].label} and scroll your {pageName}.{'\n'}
-          Come back here when you're done.
-        </Text>
-
-        <TouchableOpacity style={styles.stopButton} onPress={handleStopAndAnalyze}>
-          <Text style={styles.stopButtonText}>Stop & Analyze</Text>
-        </TouchableOpacity>
-      </View>
+      <LiveRecordingOverlay
+        platform={platform}
+        pageName={pageName}
+        recordingDurationSeconds={recordingDurationSeconds}
+        pulseAnim={pulseAnim}
+        formatDuration={formatDuration}
+        categoryColor={categoryColor}
+        onStop={handleStopAndAnalyze}
+      />
     );
   }
 
@@ -283,25 +394,69 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   redDot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
     backgroundColor: colors.red,
   },
   recordingLabel: {
     ...typ.label,
     color: colors.red,
-    fontSize: 14,
+    fontSize: 12,
+    letterSpacing: 1.5,
   },
-  timer: {
-    ...typ.bigNum,
-    color: colors.ink,
+  timerInline: {
+    ...typ.label,
+    color: colors.ink3,
+    fontSize: 12,
     fontVariant: ['tabular-nums'],
+    marginLeft: 4,
   },
-  timerCap: {
-    // Same size so the " / 3:00" sits inline with the counter but muted
+
+  // Live score block
+  liveScoreBlock: {
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 8,
+  },
+  liveScoreNum: {
+    fontFamily: 'DMSerifDisplay_400Regular',
+    fontSize: 80,
+    lineHeight: 88,
+  },
+  liveScorePending: {
+    fontFamily: 'DMSerifDisplay_400Regular',
+    fontSize: 80,
+    lineHeight: 88,
     color: colors.ink4,
   },
+  liveScoreLabel: {
+    ...typ.label,
+    color: colors.ink4,
+    fontSize: 11,
+    letterSpacing: 1.5,
+  },
+  liveFlaggedText: {
+    ...typ.bodySmall,
+    color: '#D4A017',
+    marginTop: 4,
+  },
+
+  // Heat strip — row of colored dots for each classified frame
+  heatStrip: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 5,
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    marginVertical: 4,
+  },
+  heatDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+
   recordingInstruction: {
     ...typ.body,
     color: colors.ink3,
@@ -313,7 +468,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.btn,
     paddingVertical: 16,
     paddingHorizontal: 40,
-    marginTop: 16,
+    marginTop: 8,
   },
   stopButtonText: {
     ...typ.btn,

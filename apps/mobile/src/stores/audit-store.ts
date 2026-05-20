@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { FeedAudit, Platform, AuditImageResult, AIInsightsResult, AIInsightsStatus } from '@quenchr/shared';
 import type { ScanProgress as LegacyScanProgress } from '../services/nsfw-classifier';
+import type { HaikuFrameClassification } from '../services/haiku-scan';
 import { supabase } from '@quenchr/supabase-client';
 
 /** @deprecated Use FeedAudit[] for audit history instead */
@@ -46,6 +47,10 @@ interface AuditState {
   recordingDurationSeconds: number;
   frameExtractionProgress: { current: number; total: number } | null;
 
+  // Phase 2E: Live scan real-time feedback (burst analysis during recording)
+  livePartialClassifications: HaikuFrameClassification[];
+  liveScore: number | null;
+
   // Phase 2C: AI Insights
   aiInsights: AIInsightsState;
 
@@ -78,6 +83,11 @@ interface AuditState {
   setLiveScanState: (state: LiveScanState) => void;
   setRecordingDuration: (seconds: number) => void;
   setFrameExtractionProgress: (progress: { current: number; total: number } | null) => void;
+
+  // Phase 2E actions
+  addLiveClassifications: (classifications: HaikuFrameClassification[]) => void;
+  setLiveScore: (score: number) => void;
+  resetLivePartial: () => void;
 
   // Phase 2C actions
   setAIInsightsStatus: (status: AIInsightsStatus) => void;
@@ -118,6 +128,10 @@ export const useAuditStore = create<AuditState>((set) => ({
   recordingDurationSeconds: 0,
   frameExtractionProgress: null,
 
+  // Phase 2E defaults
+  livePartialClassifications: [],
+  liveScore: null,
+
   // Phase 2C defaults
   aiInsights: { status: 'idle', result: null, error: null },
 
@@ -153,6 +167,8 @@ export const useAuditStore = create<AuditState>((set) => ({
       liveScanState: 'idle',
       recordingDurationSeconds: 0,
       frameExtractionProgress: null,
+      livePartialClassifications: [],
+      liveScore: null,
       aiInsights: { status: 'idle', result: null, error: null },
       haikuScanStatus: 'idle',
       isViewingHistory: false,
@@ -163,6 +179,14 @@ export const useAuditStore = create<AuditState>((set) => ({
   setLiveScanState: (liveScanState) => set({ liveScanState }),
   setRecordingDuration: (recordingDurationSeconds) => set({ recordingDurationSeconds }),
   setFrameExtractionProgress: (frameExtractionProgress) => set({ frameExtractionProgress }),
+
+  // Phase 2E actions
+  addLiveClassifications: (newClassifications) =>
+    set((state) => ({
+      livePartialClassifications: [...state.livePartialClassifications, ...newClassifications],
+    })),
+  setLiveScore: (liveScore) => set({ liveScore }),
+  resetLivePartial: () => set({ livePartialClassifications: [], liveScore: null }),
 
   // Phase 2C actions
   setAIInsightsStatus: (status) =>
