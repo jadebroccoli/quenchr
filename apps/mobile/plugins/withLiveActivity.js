@@ -137,20 +137,7 @@ module.exports = function withLiveActivity(config) {
       TARGETED_DEVICE_FAMILY: '"1,2"',
     };
 
-    // Apply to both Debug and Release build configurations
-    const configNames = Object.keys(
-      xcodeProject.pbxXCBuildConfigurationSection(),
-    ).filter((key) => {
-      const section = xcodeProject.pbxXCBuildConfigurationSection()[key];
-      return (
-        typeof section === 'object' &&
-        section.buildSettings &&
-        xcodeProject.getBuildConfigurationSection(key)
-          ?.target === extTarget.uuid
-      );
-    });
-
-    // Fallback: use addBuildSettings if config key lookup fails
+    // Apply build settings to both Debug and Release configurations
     xcodeProject.addBuildSettings(buildSettings, extTarget.uuid, 'Debug');
     xcodeProject.addBuildSettings(buildSettings, extTarget.uuid, 'Release');
 
