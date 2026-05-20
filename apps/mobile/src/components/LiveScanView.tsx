@@ -14,6 +14,7 @@ import {
   forceStopIfRecording,
 } from '../services/screen-capture';
 import { startLiveAnalysis, stopLiveAnalysis } from '../services/live-scan-analyzer';
+import { canDrawOverlays, requestOverlayPermission } from 'live-overlay-module';
 import { colors, type as typ, radius, spacing } from '../tokens';
 
 /**
@@ -232,6 +233,26 @@ export function LiveScanView({ platform, onFramesExtracted, onCancel }: Props) {
 
       // Request notification permission for the live overlay (best-effort, don't gate on it)
       await Notifications.requestPermissionsAsync().catch(() => {});
+
+      // Android: prompt for SYSTEM_ALERT_WINDOW if not yet granted.
+      // This is a "special" permission — we deep-link to Settings rather than
+      // showing a system dialog. We still proceed with recording if denied;
+      // the overlay just won't appear (notifications still work as fallback).
+      if (RNPlatform.OS === 'android' && !canDrawOverlays()) {
+        Alert.alert(
+          'Enable floating overlay?',
+          'Quenchr can show a live score pill over Instagram so you never have to switch apps. Enable "Display over other apps" in the next screen — you can always turn it off later.',
+          [
+            {
+              text: 'Enable it',
+              onPress: () => requestOverlayPermission(),
+            },
+            { text: 'Skip', style: 'cancel' },
+          ],
+        );
+        // Brief pause so the settings screen has time to open before recording starts
+        await new Promise((r) => setTimeout(r, 400));
+      }
 
       await startScreenRecording();
       setLiveScanState('recording');

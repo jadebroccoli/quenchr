@@ -1,0 +1,7 @@
+{
+  "name": "live-overlay-module",
+  "version": "1.0.0",
+  "description": "Android SYSTEM_ALERT_WINDOW floating overlay for Quenchr live scan",
+  "main": "src/index.ts",
+  "types": "src/index.ts"
+}

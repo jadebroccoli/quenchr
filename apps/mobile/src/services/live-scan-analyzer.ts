@@ -28,6 +28,11 @@ import {
 import { scanWithHaiku } from './haiku-scan';
 import { useAuditStore } from '../stores/audit-store';
 import type { HaikuFrameClassification } from './haiku-scan';
+import {
+  startOverlay,
+  updateOverlay,
+  stopOverlay,
+} from 'live-overlay-module';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -62,6 +67,11 @@ export async function startLiveAnalysis(platform: string): Promise<void> {
   // Show the initial "scanning" notification
   await _postNotification(null, 0);
 
+  // Android: show the floating overlay pill immediately (pending state)
+  if (Platform.OS === 'android') {
+    startOverlay(-1, 0);
+  }
+
   // Android only: kick off periodic burst cycle
   if (Platform.OS === 'android') {
     _burstInterval = setInterval(() => {
@@ -86,6 +96,7 @@ export async function stopLiveAnalysis(): Promise<void> {
   _isBursting = false;
 
   await _clearNotification();
+  if (Platform.OS === 'android') stopOverlay();
 }
 
 /**
@@ -141,11 +152,12 @@ async function _runBurst(): Promise<void> {
     store.addLiveClassifications(shifted);
     store.setLiveScore(result.overall_score);
 
-    // 7. Update notification overlay
+    // 7. Update notification + floating overlay
     const flaggedCount = _totalClassified.filter(
       (c) => c.category === 'suggestive' || c.category === 'explicit',
     ).length;
     await _postNotification(result.overall_score, flaggedCount);
+    updateOverlay(result.overall_score, flaggedCount);
 
   } catch (err) {
     console.warn('[live-analyzer] burst cycle failed:', err);
