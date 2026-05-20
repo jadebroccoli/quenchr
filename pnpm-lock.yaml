@@ -86,6 +86,9 @@ importers:
       expo-video-thumbnails:
         specifier: ~55.0.10
         version: 55.0.10(expo@55.0.6)
+      live-overlay-module:
+        specifier: file:./modules/live-overlay
+        version: file:apps/mobile/modules/live-overlay
       nsfwjs:
         specifier: ^4.1.0
         version: 4.2.1(@tensorflow/tfjs@4.22.0(seedrandom@3.0.5))(buffer@5.7.1)
@@ -2557,6 +2560,9 @@ packages:
   lightningcss@1.32.0:
     resolution: {integrity: sha512-NXYBzinNrblfraPGyrbPoD19C1h9lfI/1mzgWYvXUTe414Gz/X1FD2XBZSZM7rRTrMA8JL3OtAaGifrIKhQ5yQ==}
     engines: {node: '>= 12.0.0'}
+
+  live-overlay-module@file:apps/mobile/modules/live-overlay:
+    resolution: {directory: apps/mobile/modules/live-overlay, type: directory}
 
   locate-path@5.0.0:
     resolution: {integrity: sha512-t7hw9pI+WvuwNJXwk5zVHpyhIqzg2qTlklJOf0mVxGSbe3Fp2VieZcduNYjaLDoy6p9uGpQEGWG87WpMKlNq8g==}
@@ -6559,6 +6565,8 @@ snapshots:
       lightningcss-linux-x64-musl: 1.32.0
       lightningcss-win32-arm64-msvc: 1.32.0
       lightningcss-win32-x64-msvc: 1.32.0
+
+  live-overlay-module@file:apps/mobile/modules/live-overlay: {}
 
   locate-path@5.0.0:
     dependencies:
