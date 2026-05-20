@@ -2,26 +2,22 @@
  * Expo config plugin: adds the QuenchrLiveActivity widget extension target
  * to the iOS Xcode project.
  *
+ * Pattern copied from react-native-nitro-screen-recorder's
+ * withBroadcastExtensionXcodeProject.js (proven to work in this project).
+ *
  * What this does:
  *  1. Copies Swift + plist files from targets/quenchr-live-activity/ into
  *     ios/QuenchrLiveActivity/ during prebuild.
- *  2. Adds a new Xcode native target (widget extension) with the correct
- *     build settings, build phases (Sources / Resources / Frameworks), and
- *     the WidgetKit + ActivityKit + SwiftUI framework references.
- *  3. Embeds the extension in the main app target so it ships with the IPA.
- *  4. Sets NSSupportsLiveActivities = YES in the main app Info.plist.
- *
- * References:
- *  - https://developer.apple.com/documentation/activitykit
- *  - https://docs.expo.dev/config-plugins/plugins-and-mods/
+ *  2. Adds a PBXGroup + PBXNativeTarget (widget extension) with Sources,
+ *     Resources, and Frameworks build phases.
+ *  3. Links WidgetKit, ActivityKit, SwiftUI frameworks.
+ *  4. Patches build settings by walking pbxXCBuildConfigurationSection and
+ *     matching on PRODUCT_NAME — the only reliable way in this version of
+ *     the xcode npm package.
+ *  5. Sets NSSupportsLiveActivities = YES in the main app Info.plist.
  */
 
-const {
-  withXcodeProject,
-  withInfoPlist,
-  withEntitlementsPlist,
-  IOSConfig,
-} = require('@expo/config-plugins');
+const { withXcodeProject, withInfoPlist } = require('@expo/config-plugins');
 const path = require('path');
 const fs = require('fs');
 
@@ -39,35 +35,41 @@ const SOURCE_FILES = [
 ];
 const RESOURCE_FILES = ['Info.plist'];
 const ENTITLEMENTS_FILE = 'QuenchrLiveActivity.entitlements';
+const ALL_FILES = [...SOURCE_FILES, ...RESOURCE_FILES, ENTITLEMENTS_FILE];
 
 // ── Main export ────────────────────────────────────────────────────────────────
 
 module.exports = function withLiveActivity(config) {
-  // Step 1: NSSupportsLiveActivities in the main app Info.plist
+  // 1. Add NSSupportsLiveActivities to main app Info.plist
   config = withInfoPlist(config, (cfg) => {
     cfg.modResults.NSSupportsLiveActivities = true;
-    // Opt out of frequent updates (saves battery; we update ~every 25 s)
     cfg.modResults.NSSupportsLiveActivitiesFrequentUpdates = false;
     return cfg;
   });
 
-  // Step 2: Xcode project manipulation
+  // 2. Xcode project manipulation
   config = withXcodeProject(config, (cfg) => {
-    const xcodeProject = cfg.modResults;
-    const projectRoot = cfg.modRequest.projectRoot;
+    const pbx = cfg.modResults;
+    const projectRoot = cfg.modRequest.projectRoot; // = apps/mobile/
     const iosDir = path.join(projectRoot, 'ios');
     const extDir = path.join(iosDir, EXT_NAME);
-    const sourceDir = path.join(projectRoot, '..', 'targets', 'quenchr-live-activity');
+    // targets/ lives inside apps/mobile/ — no need for ../
+    const sourceDir = path.join(projectRoot, 'targets', 'quenchr-live-activity');
 
-    // ── Idempotency guard ──────────────────────────────────────────────────────
-    if (xcodeProject.pbxTargetByName(EXT_NAME)) {
+    // ── Idempotency ────────────────────────────────────────────────────────────
+    if (pbx.pbxTargetByName(EXT_NAME)) {
       console.log(`[withLiveActivity] ${EXT_NAME} target already exists — skipping`);
+      return cfg;
+    }
+    const existingGroups = pbx.hash.project.objects.PBXGroup;
+    if (Object.values(existingGroups).some((g) => g && g.name === EXT_NAME)) {
+      console.log(`[withLiveActivity] ${EXT_NAME} group already exists — skipping`);
       return cfg;
     }
 
     // ── Copy extension files into ios/ ─────────────────────────────────────────
     fs.mkdirSync(extDir, { recursive: true });
-    [...SOURCE_FILES, ...RESOURCE_FILES, ENTITLEMENTS_FILE].forEach((file) => {
+    ALL_FILES.forEach((file) => {
       const src = path.join(sourceDir, file);
       const dst = path.join(extDir, file);
       if (fs.existsSync(src)) {
@@ -77,101 +79,82 @@ module.exports = function withLiveActivity(config) {
       }
     });
 
-    // ── Add the extension target ───────────────────────────────────────────────
-    const extTarget = xcodeProject.addTarget(
-      EXT_NAME,
-      'app_extension',
-      EXT_NAME,
-      EXT_BUNDLE_ID,
-    );
+    // ── Workaround: addTarget crashes if these sections are missing ───────────
+    // (only happens in single-target projects — defensive)
+    const projObjects = pbx.hash.project.objects;
+    projObjects.PBXTargetDependency = projObjects.PBXTargetDependency || {};
+    projObjects.PBXContainerItemProxy = projObjects.PBXContainerItemProxy || {};
 
-    // ── Build phases ───────────────────────────────────────────────────────────
-    xcodeProject.addBuildPhase(
-      SOURCE_FILES,
-      'PBXSourcesBuildPhase',
-      'Sources',
-      extTarget.uuid,
-      { fileType: 'sourcecode.swift', path: EXT_NAME },
-    );
+    // ── 1. Create PBXGroup first (before addTarget) ────────────────────────────
+    const extGroup = pbx.addPbxGroup(ALL_FILES, EXT_NAME, EXT_NAME);
 
-    xcodeProject.addBuildPhase(
-      RESOURCE_FILES,
-      'PBXResourcesBuildPhase',
-      'Resources',
-      extTarget.uuid,
-      { fileType: 'text.plist.xml', path: EXT_NAME },
-    );
+    // Add group to the top-level (unnamed, pathless) group
+    const groups = pbx.hash.project.objects.PBXGroup;
+    Object.keys(groups).forEach((key) => {
+      if (
+        typeof groups[key] === 'object' &&
+        groups[key].name === undefined &&
+        groups[key].path === undefined
+      ) {
+        pbx.addToPbxGroup(extGroup.uuid, key);
+      }
+    });
 
-    xcodeProject.addBuildPhase(
-      [],
-      'PBXFrameworksBuildPhase',
-      'Frameworks',
-      extTarget.uuid,
-    );
+    // ── 2. Create native target ────────────────────────────────────────────────
+    const target = pbx.addTarget(EXT_NAME, 'app_extension', EXT_NAME);
 
-    // ── Frameworks ─────────────────────────────────────────────────────────────
-    // WidgetKit and ActivityKit are weakly linked (available on iOS 14+ / 16.2+)
-    const frameworkOptions = { target: extTarget.uuid, weak: true };
-    xcodeProject.addFramework('WidgetKit.framework', frameworkOptions);
-    xcodeProject.addFramework('ActivityKit.framework', frameworkOptions);
-    xcodeProject.addFramework('SwiftUI.framework', frameworkOptions);
+    // ── 3. Build phases ────────────────────────────────────────────────────────
+    pbx.addBuildPhase(SOURCE_FILES, 'PBXSourcesBuildPhase', 'Sources', target.uuid);
+    pbx.addBuildPhase([], 'PBXResourcesBuildPhase', 'Resources', target.uuid);
+    pbx.addBuildPhase([], 'PBXFrameworksBuildPhase', 'Frameworks', target.uuid);
 
-    // ── Build settings ─────────────────────────────────────────────────────────
-    const buildSettings = {
-      ALWAYS_SEARCH_USER_PATHS: 'NO',
-      CLANG_ANALYZER_NONNULL: 'YES',
-      CODE_SIGN_ENTITLEMENTS: `${EXT_NAME}/${ENTITLEMENTS_FILE}`,
-      CODE_SIGN_STYLE: 'Automatic',
-      CURRENT_PROJECT_VERSION: '$(CURRENT_PROJECT_VERSION)',
-      GENERATE_INFOPLIST_FILE: 'NO',
-      INFOPLIST_FILE: `${EXT_NAME}/Info.plist`,
-      IPHONEOS_DEPLOYMENT_TARGET: EXT_DEPLOYMENT_TARGET,
-      LD_RUNPATH_SEARCH_PATHS:
-        '$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks',
-      MARKETING_VERSION: '$(MARKETING_VERSION)',
-      PRODUCT_BUNDLE_IDENTIFIER: EXT_BUNDLE_ID,
-      PRODUCT_NAME: '$(TARGET_NAME)',
-      SKIP_INSTALL: 'YES',
-      SWIFT_EMIT_LOC_STRINGS: 'YES',
-      SWIFT_VERSION: '5.0',
-      TARGETED_DEVICE_FAMILY: '"1,2"',
-    };
+    // ── 4. Frameworks ──────────────────────────────────────────────────────────
+    const fwOpt = { target: target.uuid, sourceTree: 'SDKROOT', link: false };
+    pbx.addFramework('WidgetKit.framework', fwOpt);
+    pbx.addFramework('ActivityKit.framework', fwOpt);
+    pbx.addFramework('SwiftUI.framework', fwOpt);
 
-    // Apply build settings to both Debug and Release configurations
-    xcodeProject.addBuildSettings(buildSettings, extTarget.uuid, 'Debug');
-    xcodeProject.addBuildSettings(buildSettings, extTarget.uuid, 'Release');
+    // ── 5. Build settings via pbxXCBuildConfigurationSection ──────────────────
+    // (addBuildSettings does not exist in the xcode npm package — use direct
+    //  assignment on the config entries that match our target's PRODUCT_NAME)
+    const configurations = pbx.pbxXCBuildConfigurationSection();
+    for (const key in configurations) {
+      const config = configurations[key];
+      const b = config.buildSettings;
+      if (!b) continue;
+      if (b.PRODUCT_NAME !== `"${EXT_NAME}"`) continue;
 
-    // ── PBX group ──────────────────────────────────────────────────────────────
-    const allFiles = [...SOURCE_FILES, ...RESOURCE_FILES, ENTITLEMENTS_FILE];
-    const group = xcodeProject.addPbxGroup(allFiles, EXT_NAME, EXT_NAME);
+      b.CLANG_ENABLE_MODULES = 'YES';
+      b.CODE_SIGN_ENTITLEMENTS = `"${EXT_NAME}/${ENTITLEMENTS_FILE}"`;
+      b.CODE_SIGN_STYLE = 'Automatic';
+      b.CURRENT_PROJECT_VERSION = cfg.ios?.buildNumber ?? '1';
+      b.GENERATE_INFOPLIST_FILE = 'NO';
+      b.INFOPLIST_FILE = `"${EXT_NAME}/Info.plist"`;
+      b.IPHONEOS_DEPLOYMENT_TARGET = EXT_DEPLOYMENT_TARGET;
+      b.LD_RUNPATH_SEARCH_PATHS =
+        '"$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"';
+      b.MARKETING_VERSION = cfg.version ?? '0.1.0';
+      b.PRODUCT_BUNDLE_IDENTIFIER = `"${EXT_BUNDLE_ID}"`;
+      b.SKIP_INSTALL = 'YES';
+      b.SWIFT_EMIT_LOC_STRINGS = 'YES';
+      b.SWIFT_VERSION = '5.0';
+      b.TARGETED_DEVICE_FAMILY = '"1,2"';
+    }
 
-    const mainGroupId =
-      xcodeProject.getFirstProject().firstProject.mainGroup;
-    xcodeProject.addToPbxGroup(group.uuid, mainGroupId);
-
-    // ── Embed extension in the main app ────────────────────────────────────────
-    // Find the first app target (main Quenchr target)
-    const mainTargets = xcodeProject
-      .getFirstProject()
-      .firstProject.targets?.filter(
-        (t) => xcodeProject.pbxNativeTargetSection()[t.value]?.productType ===
-          '"com.apple.product-type.application"',
-      ) ?? [];
-
-    if (mainTargets.length > 0) {
-      const mainTargetUuid = mainTargets[0].value;
-
-      // Add dependency
-      xcodeProject.addTargetDependency(mainTargetUuid, [extTarget.uuid]);
-
-      // Embed the extension
-      xcodeProject.addBuildPhase(
-        [`${EXT_NAME}.appex`],
-        'PBXCopyFilesBuildPhase',
-        'Embed Foundation Extensions',
-        mainTargetUuid,
-        { dstSubfolderSpec: 13 }, // 13 = PlugIns
-      );
+    // ── 6. Copy DEVELOPMENT_TEAM from main app to extension ───────────────────
+    let devTeam;
+    for (const key in configurations) {
+      const b = configurations[key]?.buildSettings;
+      if (!b || !b.DEVELOPMENT_TEAM) continue;
+      const name = (b.PRODUCT_NAME || '').replace(/"/g, '');
+      if (!name.includes('Extension') && !name.includes('Widget')) {
+        devTeam = b.DEVELOPMENT_TEAM;
+        break;
+      }
+    }
+    if (devTeam) {
+      pbx.addTargetAttribute('DevelopmentTeam', devTeam);
+      pbx.addTargetAttribute('DevelopmentTeam', devTeam, pbx.pbxTargetByName(EXT_NAME));
     }
 
     console.log(`[withLiveActivity] ${EXT_NAME} target added successfully`);
