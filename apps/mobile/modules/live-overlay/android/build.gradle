@@ -12,7 +12,9 @@ android {
   // boundaries — use explicit values for this local module.
   compileSdkVersion 35
   defaultConfig {
-    minSdkVersion 26
+    // Must be <= the host app's minSdk (24). Runtime API-26 checks in
+    // OverlayManager handle the TYPE_APPLICATION_OVERLAY fallback.
+    minSdkVersion 24
     targetSdkVersion 35
   }
   compileOptions {
