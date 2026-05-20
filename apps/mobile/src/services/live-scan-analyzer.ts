@@ -10,11 +10,14 @@
  *    Android MediaProjection doesn't re-prompt on restart — seamless for users.
  *    iOS ReplayKit would show the picker on restart, so we skip this on iOS.
  *
- * 2. NOTIFICATION OVERLAY (both platforms):
- *    A persistent local notification that sits over Instagram/TikTok the whole
- *    time, updating after each burst with the current live score. Users see it
- *    without having to switch back to Quenchr.
- *    Android: sticky (stays until dismissed or cleared). iOS: standard alert.
+ * 2. LIVE OVERLAY (platform-specific):
+ *    Android: floating SYSTEM_ALERT_WINDOW pill via live-overlay-module.
+ *    iOS: Dynamic Island Live Activity via live-activity-module.
+ *    Both update after each burst; both clear when recording stops.
+ *
+ * 3. NOTIFICATION OVERLAY (both platforms, fallback):
+ *    A persistent local notification visible over Instagram/TikTok.
+ *    Android: sticky. iOS: standard alert (supplements the Live Activity).
  */
 
 import { Platform } from 'react-native';
@@ -33,6 +36,11 @@ import {
   updateOverlay,
   stopOverlay,
 } from 'live-overlay-module';
+import {
+  startLiveActivity,
+  updateLiveActivity,
+  endLiveActivity,
+} from 'live-activity-module';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -67,9 +75,13 @@ export async function startLiveAnalysis(platform: string): Promise<void> {
   // Show the initial "scanning" notification
   await _postNotification(null, 0);
 
-  // Android: show the floating overlay pill immediately (pending state)
+  // Platform-specific live overlays — both start in pending state
   if (Platform.OS === 'android') {
     startOverlay(-1, 0);
+  } else if (Platform.OS === 'ios') {
+    startLiveActivity(platform).catch((err) =>
+      console.warn('[live-analyzer] Live Activity start failed:', err),
+    );
   }
 
   // Android only: kick off periodic burst cycle
@@ -96,7 +108,13 @@ export async function stopLiveAnalysis(): Promise<void> {
   _isBursting = false;
 
   await _clearNotification();
-  if (Platform.OS === 'android') stopOverlay();
+  if (Platform.OS === 'android') {
+    stopOverlay();
+  } else if (Platform.OS === 'ios') {
+    endLiveActivity().catch((err) =>
+      console.warn('[live-analyzer] Live Activity end failed:', err),
+    );
+  }
 }
 
 /**
@@ -152,12 +170,18 @@ async function _runBurst(): Promise<void> {
     store.addLiveClassifications(shifted);
     store.setLiveScore(result.overall_score);
 
-    // 7. Update notification + floating overlay
+    // 7. Update notification + platform overlays
     const flaggedCount = _totalClassified.filter(
       (c) => c.category === 'suggestive' || c.category === 'explicit',
     ).length;
     await _postNotification(result.overall_score, flaggedCount);
-    updateOverlay(result.overall_score, flaggedCount);
+    if (Platform.OS === 'android') {
+      updateOverlay(result.overall_score, flaggedCount);
+    } else if (Platform.OS === 'ios') {
+      updateLiveActivity(result.overall_score, flaggedCount).catch((err) =>
+        console.warn('[live-analyzer] Live Activity update failed:', err),
+      );
+    }
 
   } catch (err) {
     console.warn('[live-analyzer] burst cycle failed:', err);

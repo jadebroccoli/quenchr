@@ -53,6 +53,7 @@
     "react-native-svg": "~15.15.3",
     "react-native-view-shot": "^4.0.2",
     "zustand": "^5.0.0",
+    "live-activity-module": "file:./modules/live-activity",
     "live-overlay-module": "file:./modules/live-overlay"
   },
   "devDependencies": {

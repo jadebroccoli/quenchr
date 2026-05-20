@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.quenchr.app",
-      "buildNumber": "17",
+      "buildNumber": "18",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       },
@@ -26,7 +26,7 @@
       }
     },
     "android": {
-      "versionCode": 26,
+      "versionCode": 35,
       "adaptiveIcon": {
         "backgroundColor": "#191714",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -70,7 +70,8 @@
           "enableMicrophonePermission": false
         }
       ],
-      "./plugins/withAndroidOverlayPermission"
+      "./plugins/withAndroidOverlayPermission",
+      "./plugins/withLiveActivity"
     ],
     "extra": {
       "router": {},
