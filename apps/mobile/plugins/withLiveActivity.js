@@ -40,6 +40,35 @@ const ALL_FILES = [...SOURCE_FILES, ...RESOURCE_FILES, ENTITLEMENTS_FILE];
 // ── Main export ────────────────────────────────────────────────────────────────
 
 module.exports = function withLiveActivity(config) {
+  // 0. Register the extension with EAS credential management so EAS creates
+  //    a provisioning profile for com.quenchr.app.live-activity before building.
+  //    Pattern copied from react-native-nitro-screen-recorder's withEasManagedCredentials.
+  config.extra = {
+    ...config.extra,
+    eas: {
+      ...config.extra?.eas,
+      build: {
+        ...config.extra?.eas?.build,
+        experimental: {
+          ...config.extra?.eas?.build?.experimental,
+          ios: {
+            ...config.extra?.eas?.build?.experimental?.ios,
+            appExtensions: [
+              ...(config.extra?.eas?.build?.experimental?.ios?.appExtensions ?? []),
+              {
+                targetName: EXT_NAME,
+                bundleIdentifier: EXT_BUNDLE_ID,
+                entitlements: {
+                  'com.apple.security.application-groups': [APP_GROUP],
+                },
+              },
+            ],
+          },
+        },
+      },
+    },
+  };
+
   // 1. Add NSSupportsLiveActivities to main app Info.plist
   config = withInfoPlist(config, (cfg) => {
     cfg.modResults.NSSupportsLiveActivities = true;
