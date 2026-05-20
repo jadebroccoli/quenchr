@@ -17,7 +17,8 @@ class LiveOverlayModule : Module() {
      */
     Function("canDrawOverlays") {
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-        Settings.canDrawOverlays(appContext.reactContext)
+        // reactContext may be null during init — treat as "not granted" if so
+        appContext.reactContext?.let { Settings.canDrawOverlays(it) } ?: false
       } else {
         true
       }
@@ -28,14 +29,15 @@ class LiveOverlayModule : Module() {
      * this package. Call this when canDrawOverlays() returns false.
      */
     Function("requestPermission") {
-      val context = appContext.reactContext ?: return@Function
-      val intent = Intent(
-        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-        Uri.parse("package:${context.packageName}")
-      ).apply {
-        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+      appContext.reactContext?.let { context ->
+        val intent = Intent(
+          Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+          Uri.parse("package:${context.packageName}")
+        ).apply {
+          flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        context.startActivity(intent)
       }
-      context.startActivity(intent)
     }
 
     /**
@@ -43,8 +45,9 @@ class LiveOverlayModule : Module() {
      * score = -1 means "pending" (no burst result yet) — shows "—" in the pill.
      */
     Function("startOverlay") { score: Int, flaggedCount: Int ->
-      val context = appContext.reactContext ?: return@Function
-      OverlayManager.start(context, score, flaggedCount)
+      appContext.reactContext?.let { context ->
+        OverlayManager.start(context, score, flaggedCount)
+      }
     }
 
     /**
