@@ -1,5 +1,5 @@
-apply plugin: 'com.android.library'
-apply plugin: 'kotlin-android'
+// 'expo-module' already applies com.android.library + kotlin-android internally.
+// Adding them again causes a "plugin already applied" Gradle error.
 apply plugin: 'expo-module'
 
 android {
@@ -18,6 +18,5 @@ android {
   }
 }
 
-dependencies {
-  implementation project(':expo-modules-core')
-}
+// expo-modules-core is provided automatically by the expo-module plugin;
+// no explicit dependency declaration needed.

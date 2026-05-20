@@ -83,7 +83,7 @@ object OverlayManager {
   fun stop() {
     mainThread.post {
       rootView?.let {
-        try { windowManager?.removeView(it) } catch (_: Exception) {}
+        try { windowManager?.removeView(it) } catch (e: Exception) { /* already removed */ }
       }
       rootView = null
       scoreLabel = null
